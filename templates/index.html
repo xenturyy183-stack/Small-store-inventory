@@ -24,6 +24,9 @@
             </div>
             <div class="topbar-actions">
                 <form class="search" action="{{ url_for('index') }}" method="get">
+                    {% if category %}
+                        <input type="hidden" name="category" value="{{ category }}">
+                    {% endif %}
                     <svg class="search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
                         <circle cx="11" cy="11" r="7"></circle>
                         <path d="M20 20l-4-4"></path>
@@ -112,6 +115,11 @@
                     <input id="name" name="name" type="text" required autocomplete="off">
                 </label>
                 <label>
+                    Category
+                    <input id="category" name="category" type="text" maxlength="50"
+                           placeholder="e.g. Fruits" required autocomplete="off">
+                </label>
+                <label>
                     Quantity
                     <input id="quantity" name="quantity" type="number" min="0" step="1" required>
                 </label>
@@ -129,15 +137,34 @@
         <section class="card table-card">
             <div class="table-heading">
                 <h2>Inventory</h2>
-                {% if search %}
-                    <a href="{{ url_for('index') }}">Clear search</a>
-                {% endif %}
+                <div class="inventory-filters">
+                    <form class="category-filter" action="{{ url_for('index') }}" method="get">
+                        {% if search %}
+                            <input type="hidden" name="search" value="{{ search }}">
+                        {% endif %}
+                        <label class="visually-hidden" for="category-filter">Filter by category</label>
+                        <select id="category-filter" name="category">
+                            <option value="">All categories</option>
+                            {% for option in categories %}
+                                <option value="{{ option.category }}"
+                                        {% if category|lower == option.category|lower %}selected{% endif %}>
+                                    {{ option.category }}
+                                </option>
+                            {% endfor %}
+                        </select>
+                        <button type="submit" class="filter-button">Filter</button>
+                    </form>
+                    {% if search or category %}
+                        <a href="{{ url_for('index') }}">Clear filters</a>
+                    {% endif %}
+                </div>
             </div>
             <div class="table-wrap">
                 <table>
                     <thead>
                         <tr>
                             <th>Item</th>
+                            <th>Category</th>
                             <th>Quantity</th>
                             <th>Unit price</th>
                             <th>Stock value</th>
@@ -149,6 +176,9 @@
                             <tr>
                                 <td data-label="Item">
                                     <span class="item-name"><span class="item-dot"></span>{{ item.name }}</span>
+                                </td>
+                                <td data-label="Category">
+                                    <span class="category-tag">{{ item.category }}</span>
                                 </td>
                                 <td data-label="Quantity">
                                     {% if item.quantity == 0 %}
@@ -165,6 +195,7 @@
                                     <div class="action-buttons">
                                         <button type="button" class="edit-button"
                                                 data-name="{{ item.name }}"
+                                                data-category="{{ item.category }}"
                                                 data-quantity="{{ item.quantity }}"
                                                 data-price="{{ item.price }}"
                                                 data-update-url="{{ url_for('update_item', item_id=item.id) }}">Edit</button>
@@ -178,7 +209,7 @@
                             </tr>
                         {% else %}
                             <tr>
-                                <td colspan="5" class="empty">No inventory items found.</td>
+                                <td colspan="6" class="empty">No inventory items found.</td>
                             </tr>
                         {% endfor %}
                     </tbody>
@@ -194,6 +225,7 @@
         document.querySelectorAll(".edit-button").forEach((button) => {
             button.addEventListener("click", () => {
                 document.getElementById("name").value = button.dataset.name;
+                document.getElementById("category").value = button.dataset.category;
                 document.getElementById("quantity").value = button.dataset.quantity;
                 document.getElementById("price").value = button.dataset.price;
                 itemForm.action = button.dataset.updateUrl;

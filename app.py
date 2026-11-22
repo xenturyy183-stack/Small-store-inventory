@@ -48,11 +48,19 @@ def init_db():
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
                 name TEXT NOT NULL,
+                category TEXT NOT NULL DEFAULT 'Other',
                 quantity INTEGER NOT NULL CHECK (quantity >= 0),
                 price REAL NOT NULL CHECK (price >= 0)
             );
             """
         )
+        item_columns = {
+            row["name"] for row in connection.execute("PRAGMA table_info(items)")
+        }
+        if "category" not in item_columns:
+            connection.execute(
+                "ALTER TABLE items ADD COLUMN category TEXT NOT NULL DEFAULT 'Other'"
+            )
         connection.commit()
 
 
@@ -122,18 +130,26 @@ def import_legacy_inventory(connection, user_id):
             and item["price"] >= 0
         ):
             connection.execute(
-                "INSERT INTO items (user_id, name, quantity, price) VALUES (?, ?, ?, ?)",
-                (user_id, item["name"], item["quantity"], item["price"]),
+                """
+                INSERT INTO items (user_id, name, category, quantity, price)
+                VALUES (?, ?, ?, ?, ?)
+                """,
+                (user_id, item["name"], "Other", item["quantity"], item["price"]),
             )
 
 
 def read_item_form():
     name = request.form.get("name", "").strip()
+    category = request.form.get("category", "").strip()
     quantity_text = request.form.get("quantity", "").strip()
     price_text = request.form.get("price", "").strip()
 
     if not name:
         raise ValueError("Enter an item name.")
+    if not category:
+        raise ValueError("Enter an item category.")
+    if len(category) > 50:
+        raise ValueError("Category must be 50 characters or fewer.")
 
     try:
         quantity = int(quantity_text)
@@ -150,7 +166,7 @@ def read_item_form():
     if not math.isfinite(price) or price < 0:
         raise ValueError("Price must be a non-negative number.")
 
-    return name, quantity, price
+    return name, category, quantity, price
 
 
 @app.get("/register")
@@ -237,21 +253,37 @@ def logout():
 @login_required
 def index():
     search = request.args.get("search", "").strip()
+    category = request.args.get("category", "").strip()
     with closing(connect_db()) as connection:
+        conditions = ["user_id = ?"]
+        parameters = [g.user["id"]]
         if search:
-            items = connection.execute(
-                """
-                SELECT id, name, quantity, price FROM items
-                WHERE user_id = ? AND name LIKE ? ESCAPE '\\'
-                ORDER BY id
-                """,
-                (g.user["id"], "%" + search.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_") + "%"),
-            ).fetchall()
-        else:
-            items = connection.execute(
-                "SELECT id, name, quantity, price FROM items WHERE user_id = ? ORDER BY id",
-                (g.user["id"],),
-            ).fetchall()
+            conditions.append("name LIKE ? ESCAPE '\\'")
+            parameters.append(
+                "%"
+                + search.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+                + "%"
+            )
+        if category:
+            conditions.append("category = ? COLLATE NOCASE")
+            parameters.append(category)
+        items = connection.execute(
+            f"""
+            SELECT id, name, category, quantity, price FROM items
+            WHERE {" AND ".join(conditions)}
+            ORDER BY id
+            """,
+            parameters,
+        ).fetchall()
+        categories = connection.execute(
+            """
+            SELECT MIN(category) AS category FROM items
+            WHERE user_id = ?
+            GROUP BY category COLLATE NOCASE
+            ORDER BY category COLLATE NOCASE
+            """,
+            (g.user["id"],),
+        ).fetchall()
 
     total_items = sum(item["quantity"] for item in items)
     total_value = sum(item["quantity"] * item["price"] for item in items)
@@ -259,6 +291,8 @@ def index():
         "index.html",
         items=items,
         search=search,
+        category=category,
+        categories=categories,
         total_items=total_items,
         total_value=total_value,
         username=g.user["username"],
@@ -269,11 +303,14 @@ def index():
 @login_required
 def add_item():
     try:
-        name, quantity, price = read_item_form()
+        name, category, quantity, price = read_item_form()
         with closing(connect_db()) as connection:
             connection.execute(
-                "INSERT INTO items (user_id, name, quantity, price) VALUES (?, ?, ?, ?)",
-                (g.user["id"], name, quantity, price),
+                """
+                INSERT INTO items (user_id, name, category, quantity, price)
+                VALUES (?, ?, ?, ?, ?)
+                """,
+                (g.user["id"], name, category, quantity, price),
             )
             connection.commit()
         flash(f"Added {name}.", "success")
@@ -289,14 +326,14 @@ def add_item():
 @login_required
 def update_item(item_id):
     try:
-        name, quantity, price = read_item_form()
+        name, category, quantity, price = read_item_form()
         with closing(connect_db()) as connection:
             result = connection.execute(
                 """
-                UPDATE items SET name = ?, quantity = ?, price = ?
+                UPDATE items SET name = ?, category = ?, quantity = ?, price = ?
                 WHERE id = ? AND user_id = ?
                 """,
-                (name, quantity, price, item_id, g.user["id"]),
+                (name, category, quantity, price, item_id, g.user["id"]),
             )
             connection.commit()
         if result.rowcount:
