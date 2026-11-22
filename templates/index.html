@@ -8,23 +8,46 @@
 </head>
 <body>
     <main class="container">
-        <header>
-            <div>
-                <p class="eyebrow">Store dashboard</p>
-                <h1>Small Store Inventory</h1>
-                <p class="account-name">Signed in as {{ username }}</p>
+        <header class="topbar">
+            <div class="brand">
+                <span class="brand-mark" aria-hidden="true">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M3 9l9-5 9 5-9 5-9-5z"></path>
+                        <path d="M3 9v7l9 5 9-5V9"></path>
+                        <path d="M12 14v7"></path>
+                    </svg>
+                </span>
+                <div>
+                    <span class="brand-name">Small Store</span>
+                    <span class="brand-label">Inventory Manager</span>
+                </div>
             </div>
-            <div class="header-actions">
+            <div class="topbar-actions">
                 <form class="search" action="{{ url_for('index') }}" method="get">
+                    <svg class="search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                        <circle cx="11" cy="11" r="7"></circle>
+                        <path d="M20 20l-4-4"></path>
+                    </svg>
                     <input type="search" name="search" value="{{ search }}" placeholder="Search inventory">
                     <button type="submit">Search</button>
                 </form>
+                <div class="user-chip" title="Signed in as {{ username }}">
+                    <span class="user-avatar">{{ username[0]|upper }}</span>
+                    {{ username }}
+                </div>
                 <form action="{{ url_for('logout') }}" method="post">
                     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                     <button type="submit" class="secondary">Log out</button>
                 </form>
             </div>
         </header>
+
+        <div class="card-heading" style="margin: 2px 0 18px;">
+            <div>
+                <p class="eyebrow">Store dashboard</p>
+                <h1>Inventory overview</h1>
+            </div>
+        </div>
 
         {% with messages = get_flashed_messages(with_categories=true) %}
             {% if messages %}
@@ -36,17 +59,52 @@
 
         <section class="summary" aria-label="Inventory summary">
             <article>
-                <span>Items in stock</span>
-                <strong>{{ total_items }}</strong>
+                <div class="metric-copy">
+                    <span>Items in stock</span>
+                    <strong>{{ total_items }}</strong>
+                </div>
+                <span class="metric-icon success" aria-hidden="true">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M20 13V7l-8-4-8 4v6"></path>
+                        <path d="M4 7l8 4 8-4M12 11v9"></path>
+                    </svg>
+                </span>
             </article>
             <article>
-                <span>Inventory value</span>
-                <strong>${{ "%.2f"|format(total_value) }}</strong>
+                <div class="metric-copy">
+                    <span>Product types</span>
+                    <strong>{{ items|length }}</strong>
+                </div>
+                <span class="metric-icon" aria-hidden="true">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <rect x="3" y="3" width="7" height="7" rx="1"></rect>
+                        <rect x="14" y="3" width="7" height="7" rx="1"></rect>
+                        <rect x="3" y="14" width="7" height="7" rx="1"></rect>
+                        <rect x="14" y="14" width="7" height="7" rx="1"></rect>
+                    </svg>
+                </span>
+            </article>
+            <article>
+                <div class="metric-copy">
+                    <span>Inventory value</span>
+                    <strong>${{ "%.2f"|format(total_value) }}</strong>
+                </div>
+                <span class="metric-icon value" aria-hidden="true">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <circle cx="12" cy="12" r="9"></circle>
+                        <path d="M16 8.5c-.8-.7-1.9-1-3-1-1.7 0-3 0.9-3 2.2 0 3.4 6 1.2 6 4.6 0 1.3-1.3 2.2-3 2.2-1.2 0-2.4-.4-3.2-1.2M13 5v14"></path>
+                    </svg>
+                </span>
             </article>
         </section>
 
         <section class="card">
-            <h2>Add or update an item</h2>
+            <div class="card-heading">
+                <div>
+                    <h2>Add or update an item</h2>
+                    <p>Enter the product details below.</p>
+                </div>
+            </div>
             <form id="item-form" action="{{ url_for('add_item') }}" method="post" class="item-form">
                 <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                 <label>
@@ -89,8 +147,18 @@
                     <tbody>
                         {% for item in items %}
                             <tr>
-                                <td data-label="Item">{{ item.name }}</td>
-                                <td data-label="Quantity">{{ item.quantity }}</td>
+                                <td data-label="Item">
+                                    <span class="item-name"><span class="item-dot"></span>{{ item.name }}</span>
+                                </td>
+                                <td data-label="Quantity">
+                                    {% if item.quantity == 0 %}
+                                        <span class="stock-badge out">0</span>
+                                    {% elif item.quantity <= 5 %}
+                                        <span class="stock-badge low">{{ item.quantity }}</span>
+                                    {% else %}
+                                        <span class="stock-badge">{{ item.quantity }}</span>
+                                    {% endif %}
+                                </td>
                                 <td data-label="Unit price">${{ "%.2f"|format(item.price) }}</td>
                                 <td data-label="Stock value">${{ "%.2f"|format(item.quantity * item.price) }}</td>
                                 <td data-label="Actions" class="actions">
