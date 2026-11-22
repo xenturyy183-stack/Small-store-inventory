@@ -1,10 +1,5 @@
 [
   {
-    "name": "sardine",
-    "quantity": 100,
-    "price": 9.99
-  },
-  {
     "name": "coca-cola",
     "quantity": 90,
     "price": 20.99
