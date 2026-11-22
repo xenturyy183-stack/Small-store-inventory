@@ -162,16 +162,18 @@
                                 <td data-label="Unit price">${{ "%.2f"|format(item.price) }}</td>
                                 <td data-label="Stock value">${{ "%.2f"|format(item.quantity * item.price) }}</td>
                                 <td data-label="Actions" class="actions">
-                                    <button type="button" class="edit-button"
-                                            data-name="{{ item.name }}"
-                                            data-quantity="{{ item.quantity }}"
-                                            data-price="{{ item.price }}"
-                                            data-update-url="{{ url_for('update_item', item_id=item.id) }}">Edit</button>
-                                    <form action="{{ url_for('delete_item', item_id=item.id) }}" method="post"
-                                          class="delete-form">
-                                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                                        <button type="submit" class="delete-button">Delete</button>
-                                    </form>
+                                    <div class="action-buttons">
+                                        <button type="button" class="edit-button"
+                                                data-name="{{ item.name }}"
+                                                data-quantity="{{ item.quantity }}"
+                                                data-price="{{ item.price }}"
+                                                data-update-url="{{ url_for('update_item', item_id=item.id) }}">Edit</button>
+                                        <form action="{{ url_for('delete_item', item_id=item.id) }}" method="post"
+                                              class="delete-form">
+                                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                            <button type="submit" class="delete-button">Delete</button>
+                                        </form>
+                                    </div>
                                 </td>
                             </tr>
                         {% else %}

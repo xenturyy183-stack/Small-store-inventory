@@ -382,6 +382,10 @@ td:nth-child(2), td:nth-child(3), td:nth-child(4) {
     text-align: right;
 }
 
+th:last-child {
+    text-align: right;
+}
+
 .item-name {
     display: flex;
     align-items: center;
@@ -419,9 +423,17 @@ td:nth-child(2), td:nth-child(3), td:nth-child(4) {
 }
 
 .actions {
-    display: flex;
-    justify-content: flex-end;
+    text-align: right;
+}
+
+.action-buttons {
+    display: inline-flex;
+    align-items: center;
     gap: 8px;
+}
+
+.delete-form {
+    margin: 0;
 }
 
 .actions button {
@@ -615,6 +627,10 @@ td:nth-child(2), td:nth-child(3), td:nth-child(4) {
     }
 
     .actions {
+        text-align: left;
+    }
+
+    .action-buttons {
         justify-content: flex-start;
     }
 }
