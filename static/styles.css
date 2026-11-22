@@ -28,6 +28,17 @@ header {
     margin-bottom: 20px;
 }
 
+.account-name {
+    margin: 8px 0 0;
+    color: #64748b;
+}
+
+.header-actions {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
 .eyebrow {
     margin: 0 0 4px;
     color: #64748b;
@@ -232,8 +243,64 @@ td:nth-child(2), td:nth-child(3), td:nth-child(4) {
     text-align: center;
 }
 
+.auth-container {
+    display: grid;
+    min-height: 100vh;
+    place-items: center;
+    padding: 24px;
+}
+
+.auth-card {
+    width: min(440px, 100%);
+    padding: 30px;
+}
+
+.auth-card h1 {
+    margin-top: 6px;
+    font-size: 2rem;
+}
+
+.auth-description {
+    margin: 8px 0 22px;
+    color: #64748b;
+}
+
+.auth-form {
+    display: grid;
+    gap: 16px;
+}
+
+.auth-form label {
+    display: grid;
+    gap: 7px;
+    color: #475569;
+    font-size: 0.9rem;
+    font-weight: 700;
+}
+
+.auth-form small {
+    color: #64748b;
+    font-weight: 400;
+}
+
+.auth-switch {
+    margin: 20px 0 0;
+    color: #64748b;
+    text-align: center;
+}
+
+.auth-switch a {
+    color: #1d4ed8;
+    font-weight: 700;
+}
+
 @media (max-width: 760px) {
     header {
+        align-items: stretch;
+        flex-direction: column;
+    }
+
+    .header-actions {
         align-items: stretch;
         flex-direction: column;
     }

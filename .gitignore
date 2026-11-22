@@ -1,0 +1,6 @@
+inventory.sqlite3
+inventory.sqlite3-journal
+inventory.sqlite3-shm
+inventory.sqlite3-wal
+__pycache__/
+*.py[cod]

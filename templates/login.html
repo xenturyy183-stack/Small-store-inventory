@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Log in · Small Store Inventory</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
+</head>
+<body>
+    <main class="auth-container">
+        <section class="card auth-card">
+            <p class="eyebrow">Store inventory</p>
+            <h1>Welcome back</h1>
+            <p class="auth-description">Log in to view your private inventory.</p>
+
+            {% with messages = get_flashed_messages(with_categories=true) %}
+                {% if messages %}
+                    {% for category, message in messages %}
+                        <div class="flash {{ category }}">{{ message }}</div>
+                    {% endfor %}
+                {% endif %}
+            {% endwith %}
+
+            <form action="{{ url_for('login') }}" method="post" class="auth-form">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <label>
+                    Username
+                    <input name="username" type="text" required autocomplete="username" autofocus>
+                </label>
+                <label>
+                    Password
+                    <input name="password" type="password" required autocomplete="current-password">
+                </label>
+                <button type="submit">Log in</button>
+            </form>
+            <p class="auth-switch">New here? <a href="{{ url_for('register') }}">Create an account</a></p>
+        </section>
+    </main>
+</body>
+</html>

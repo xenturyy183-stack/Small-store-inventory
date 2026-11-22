@@ -12,11 +12,18 @@
             <div>
                 <p class="eyebrow">Store dashboard</p>
                 <h1>Small Store Inventory</h1>
+                <p class="account-name">Signed in as {{ username }}</p>
             </div>
-            <form class="search" action="{{ url_for('index') }}" method="get">
-                <input type="search" name="search" value="{{ search }}" placeholder="Search inventory">
-                <button type="submit">Search</button>
-            </form>
+            <div class="header-actions">
+                <form class="search" action="{{ url_for('index') }}" method="get">
+                    <input type="search" name="search" value="{{ search }}" placeholder="Search inventory">
+                    <button type="submit">Search</button>
+                </form>
+                <form action="{{ url_for('logout') }}" method="post">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <button type="submit" class="secondary">Log out</button>
+                </form>
+            </div>
         </header>
 
         {% with messages = get_flashed_messages(with_categories=true) %}
@@ -41,6 +48,7 @@
         <section class="card">
             <h2>Add or update an item</h2>
             <form id="item-form" action="{{ url_for('add_item') }}" method="post" class="item-form">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                 <label>
                     Item name
                     <input id="name" name="name" type="text" required autocomplete="off">
@@ -89,10 +97,11 @@
                                     <button type="button" class="edit-button"
                                             data-name="{{ item.name }}"
                                             data-quantity="{{ item.quantity }}"
-                                            data-price="{{ item.price }}">Edit</button>
-                                    <form action="{{ url_for('delete_item') }}" method="post"
-                                          onsubmit="return confirm('Delete {{ item.name }}?');">
-                                        <input type="hidden" name="name" value="{{ item.name }}">
+                                            data-price="{{ item.price }}"
+                                            data-update-url="{{ url_for('update_item', item_id=item.id) }}">Edit</button>
+                                    <form action="{{ url_for('delete_item', item_id=item.id) }}" method="post"
+                                          class="delete-form">
+                                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                                         <button type="submit" class="delete-button">Delete</button>
                                     </form>
                                 </td>
@@ -117,7 +126,7 @@
                 document.getElementById("name").value = button.dataset.name;
                 document.getElementById("quantity").value = button.dataset.quantity;
                 document.getElementById("price").value = button.dataset.price;
-                itemForm.action = "{{ url_for('update_item') }}";
+                itemForm.action = button.dataset.updateUrl;
                 submitButton.textContent = "Update item";
                 document.getElementById("name").scrollIntoView({ behavior: "smooth" });
                 document.getElementById("name").focus();
@@ -128,6 +137,14 @@
             itemForm.reset();
             itemForm.action = "{{ url_for('add_item') }}";
             submitButton.textContent = "Add item";
+        });
+
+        document.querySelectorAll(".delete-form").forEach((form) => {
+            form.addEventListener("submit", (event) => {
+                if (!window.confirm("Delete this item from your inventory?")) {
+                    event.preventDefault();
+                }
+            });
         });
     </script>
 </body>
