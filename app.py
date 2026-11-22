@@ -180,6 +180,8 @@ def import_legacy_inventory(connection, user_id):
 def read_item_form():
     name = request.form.get("name", "").strip()
     category = request.form.get("category", "").strip()
+    name = name[:1].upper() + name[1:]
+    category = category[:1].upper() + category[1:]
     quantity_text = request.form.get("quantity", "").strip()
     price_text = request.form.get("price", "").strip()
 

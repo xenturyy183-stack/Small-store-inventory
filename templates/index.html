@@ -221,6 +221,24 @@
     <script>
         const itemForm = document.getElementById("item-form");
         const submitButton = document.getElementById("submit-button");
+        const capitalizeInitial = (input) => {
+            if (!input.value) {
+                return;
+            }
+            const selectionStart = input.selectionStart;
+            const firstCharacter = input.value.charAt(0).toUpperCase();
+            if (input.value.charAt(0) !== firstCharacter) {
+                input.value = firstCharacter + input.value.slice(1);
+                if (selectionStart !== null) {
+                    input.setSelectionRange(selectionStart, selectionStart);
+                }
+            }
+        };
+
+        ["name", "category"].forEach((id) => {
+            const input = document.getElementById(id);
+            input.addEventListener("input", () => capitalizeInitial(input));
+        });
 
         document.querySelectorAll(".edit-button").forEach((button) => {
             button.addEventListener("click", () => {
