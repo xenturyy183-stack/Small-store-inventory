@@ -61,6 +61,40 @@ def init_db():
             connection.execute(
                 "ALTER TABLE items ADD COLUMN category TEXT NOT NULL DEFAULT 'Other'"
             )
+        duplicate_groups = connection.execute(
+            """
+            SELECT user_id, name COLLATE NOCASE AS normalized_name
+            FROM items
+            GROUP BY user_id, name COLLATE NOCASE
+            HAVING COUNT(*) > 1
+            """
+        ).fetchall()
+        for group in duplicate_groups:
+            duplicates = connection.execute(
+                """
+                SELECT id, quantity FROM items
+                WHERE user_id = ? AND name = ? COLLATE NOCASE
+                ORDER BY id
+                """,
+                (group["user_id"], group["normalized_name"]),
+            ).fetchall()
+            keep_id = duplicates[-1]["id"]
+            total_quantity = sum(item["quantity"] for item in duplicates)
+            duplicate_ids = [item["id"] for item in duplicates[:-1]]
+            connection.execute(
+                "UPDATE items SET quantity = ? WHERE id = ?",
+                (total_quantity, keep_id),
+            )
+            connection.executemany(
+                "DELETE FROM items WHERE id = ?",
+                [(item_id,) for item_id in duplicate_ids],
+            )
+        connection.execute(
+            """
+            CREATE UNIQUE INDEX IF NOT EXISTS unique_item_name_per_user
+            ON items (user_id, name COLLATE NOCASE)
+            """
+        )
         connection.commit()
 
 
@@ -133,6 +167,11 @@ def import_legacy_inventory(connection, user_id):
                 """
                 INSERT INTO items (user_id, name, category, quantity, price)
                 VALUES (?, ?, ?, ?, ?)
+                ON CONFLICT(user_id, name COLLATE NOCASE) DO UPDATE SET
+                    name = excluded.name,
+                    category = excluded.category,
+                    quantity = excluded.quantity,
+                    price = excluded.price
                 """,
                 (user_id, item["name"], "Other", item["quantity"], item["price"]),
             )
@@ -305,15 +344,31 @@ def add_item():
     try:
         name, category, quantity, price = read_item_form()
         with closing(connect_db()) as connection:
+            connection.execute("BEGIN IMMEDIATE")
+            existing_item = connection.execute(
+                """
+                SELECT id FROM items
+                WHERE user_id = ? AND name = ? COLLATE NOCASE
+                """,
+                (g.user["id"], name),
+            ).fetchone()
             connection.execute(
                 """
                 INSERT INTO items (user_id, name, category, quantity, price)
                 VALUES (?, ?, ?, ?, ?)
+                ON CONFLICT(user_id, name COLLATE NOCASE) DO UPDATE SET
+                    name = excluded.name,
+                    category = excluded.category,
+                    quantity = excluded.quantity,
+                    price = excluded.price
                 """,
                 (g.user["id"], name, category, quantity, price),
             )
             connection.commit()
-        flash(f"Added {name}.", "success")
+        if existing_item:
+            flash(f"Updated existing item {name}.", "success")
+        else:
+            flash(f"Added {name}.", "success")
     except ValueError as error:
         flash(str(error), "error")
     except sqlite3.Error:
@@ -328,6 +383,16 @@ def update_item(item_id):
     try:
         name, category, quantity, price = read_item_form()
         with closing(connect_db()) as connection:
+            duplicate = connection.execute(
+                """
+                SELECT id FROM items
+                WHERE user_id = ? AND name = ? COLLATE NOCASE AND id != ?
+                """,
+                (g.user["id"], name, item_id),
+            ).fetchone()
+            if duplicate:
+                flash("Another item already uses that name. Edit that item instead.", "error")
+                return redirect(url_for("index"))
             result = connection.execute(
                 """
                 UPDATE items SET name = ?, category = ?, quantity = ?, price = ?
@@ -342,6 +407,8 @@ def update_item(item_id):
             flash("Item not found in your inventory.", "error")
     except ValueError as error:
         flash(str(error), "error")
+    except sqlite3.IntegrityError:
+        flash("Another item already uses that name. Edit that item instead.", "error")
     except sqlite3.Error:
         app.logger.exception("Could not update inventory item")
         flash("Could not update the item. Please try again.", "error")
