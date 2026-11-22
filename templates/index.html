@@ -1,0 +1,134 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Small Store Inventory</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
+</head>
+<body>
+    <main class="container">
+        <header>
+            <div>
+                <p class="eyebrow">Store dashboard</p>
+                <h1>Small Store Inventory</h1>
+            </div>
+            <form class="search" action="{{ url_for('index') }}" method="get">
+                <input type="search" name="search" value="{{ search }}" placeholder="Search inventory">
+                <button type="submit">Search</button>
+            </form>
+        </header>
+
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                {% for category, message in messages %}
+                    <div class="flash {{ category }}">{{ message }}</div>
+                {% endfor %}
+            {% endif %}
+        {% endwith %}
+
+        <section class="summary" aria-label="Inventory summary">
+            <article>
+                <span>Items in stock</span>
+                <strong>{{ total_items }}</strong>
+            </article>
+            <article>
+                <span>Inventory value</span>
+                <strong>${{ "%.2f"|format(total_value) }}</strong>
+            </article>
+        </section>
+
+        <section class="card">
+            <h2>Add or update an item</h2>
+            <form id="item-form" action="{{ url_for('add_item') }}" method="post" class="item-form">
+                <label>
+                    Item name
+                    <input id="name" name="name" type="text" required autocomplete="off">
+                </label>
+                <label>
+                    Quantity
+                    <input id="quantity" name="quantity" type="number" min="0" step="1" required>
+                </label>
+                <label>
+                    Unit price
+                    <input id="price" name="price" type="number" min="0" step="0.01" required>
+                </label>
+                <div class="form-actions">
+                    <button type="submit" id="submit-button">Add item</button>
+                    <button type="button" class="secondary" id="clear-button">Clear</button>
+                </div>
+            </form>
+        </section>
+
+        <section class="card table-card">
+            <div class="table-heading">
+                <h2>Inventory</h2>
+                {% if search %}
+                    <a href="{{ url_for('index') }}">Clear search</a>
+                {% endif %}
+            </div>
+            <div class="table-wrap">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Item</th>
+                            <th>Quantity</th>
+                            <th>Unit price</th>
+                            <th>Stock value</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for item in items %}
+                            <tr>
+                                <td data-label="Item">{{ item.name }}</td>
+                                <td data-label="Quantity">{{ item.quantity }}</td>
+                                <td data-label="Unit price">${{ "%.2f"|format(item.price) }}</td>
+                                <td data-label="Stock value">${{ "%.2f"|format(item.quantity * item.price) }}</td>
+                                <td data-label="Actions" class="actions">
+                                    <button type="button" class="edit-button"
+                                            data-name="{{ item.name }}"
+                                            data-quantity="{{ item.quantity }}"
+                                            data-price="{{ item.price }}">Edit</button>
+                                    <form action="{{ url_for('delete_item') }}" method="post"
+                                          onsubmit="return confirm('Delete {{ item.name }}?');">
+                                        <input type="hidden" name="name" value="{{ item.name }}">
+                                        <button type="submit" class="delete-button">Delete</button>
+                                    </form>
+                                </td>
+                            </tr>
+                        {% else %}
+                            <tr>
+                                <td colspan="5" class="empty">No inventory items found.</td>
+                            </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </section>
+    </main>
+
+    <script>
+        const itemForm = document.getElementById("item-form");
+        const submitButton = document.getElementById("submit-button");
+
+        document.querySelectorAll(".edit-button").forEach((button) => {
+            button.addEventListener("click", () => {
+                document.getElementById("name").value = button.dataset.name;
+                document.getElementById("quantity").value = button.dataset.quantity;
+                document.getElementById("price").value = button.dataset.price;
+                itemForm.action = "{{ url_for('update_item') }}";
+                submitButton.textContent = "Update item";
+                document.getElementById("name").scrollIntoView({ behavior: "smooth" });
+                document.getElementById("name").focus();
+            });
+        });
+
+        document.getElementById("clear-button").addEventListener("click", () => {
+            itemForm.reset();
+            itemForm.action = "{{ url_for('add_item') }}";
+            submitButton.textContent = "Add item";
+        });
+    </script>
+</body>
+</html>

@@ -1,0 +1,42 @@
+[
+  {
+    "name": "sardine",
+    "quantity": 100,
+    "price": 9.99
+  },
+  {
+    "name": "coca-cola",
+    "quantity": 90,
+    "price": 20.99
+  },
+  {
+    "name": "chips",
+    "quantity": 40,
+    "price": 3.49
+  },
+  {
+    "name": "bread",
+    "quantity": 50,
+    "price": 9.78
+  },
+  {
+    "name": "beer",
+    "quantity": 80,
+    "price": 15.9
+  },
+  {
+    "name": "candy",
+    "quantity": 100,
+    "price": 1.8
+  },
+  {
+    "name": "apple",
+    "quantity": 600,
+    "price": 4.5
+  },
+  {
+    "name": "chocolate",
+    "quantity": 500,
+    "price": 2.3
+  }
+]
