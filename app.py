@@ -1,3 +1,5 @@
+import csv
+import io
 import json
 import math
 import os
@@ -10,13 +12,14 @@ from contextlib import closing
 from functools import wraps
 from pathlib import Path
 
-from flask import Flask, flash, g, redirect, render_template, request, session, url_for
+from flask import Flask, Response, flash, g, redirect, render_template, request, session, url_for
 from werkzeug.security import check_password_hash, generate_password_hash
 
 
 PROJECT_DIR = Path(__file__).resolve().parent
 INVENTORY_FILE = PROJECT_DIR / "inventory.json"
 DATABASE_FILE = PROJECT_DIR / "inventory.sqlite3"
+MAX_IMPORT_BYTES = 2 * 1024 * 1024
 
 app = Flask(__name__)
 app.config.update(
@@ -308,6 +311,111 @@ def format_item_code(item_id):
     return f"SKU-{item_id:06d}"
 
 
+def read_inventory_csv(upload):
+    if not upload.filename or not upload.filename.lower().endswith(".csv"):
+        raise ValueError("Choose a CSV file.")
+
+    content = upload.stream.read(MAX_IMPORT_BYTES + 1)
+    if len(content) > MAX_IMPORT_BYTES:
+        raise ValueError("The CSV file must be 2 MB or smaller.")
+
+    try:
+        text = content.decode("utf-8-sig")
+    except UnicodeDecodeError as error:
+        raise ValueError("The CSV file must use UTF-8 encoding.") from error
+
+    reader = csv.DictReader(io.StringIO(text, newline=""))
+    if not reader.fieldnames:
+        raise ValueError("The CSV file is empty or missing a header row.")
+
+    headers = [header.strip().lower() if header else "" for header in reader.fieldnames]
+    if any(not header for header in headers) or len(headers) != len(set(headers)):
+        raise ValueError("The CSV file has an empty or duplicate column name.")
+    reader.fieldnames = headers
+
+    required_headers = {"name", "category", "quantity", "price"}
+    missing_headers = required_headers - set(headers)
+    if missing_headers:
+        raise ValueError(
+            "The CSV must include these columns: name, category, quantity, price."
+        )
+
+    products = []
+    seen_names = set()
+    seen_codes = set()
+    for row in reader:
+        row_number = reader.line_num
+        if None in row and any(value and value.strip() for value in row[None]):
+            raise ValueError(f"Row {row_number} has extra values without column headers.")
+        if not any(value and value.strip() for value in row.values() if value is not None):
+            continue
+
+        name = (row.get("name") or "").strip()
+        category = (row.get("category") or "").strip()
+        if not name:
+            raise ValueError(f"Row {row_number}: enter a product name.")
+        if not category:
+            raise ValueError(f"Row {row_number}: enter a category.")
+        if len(category) > 50:
+            raise ValueError(f"Row {row_number}: category must be 50 characters or fewer.")
+
+        try:
+            quantity = int((row.get("quantity") or "").strip())
+            price = float((row.get("price") or "").strip())
+        except ValueError as error:
+            raise ValueError(
+                f"Row {row_number}: quantity must be a whole number and price must be numeric."
+            ) from error
+
+        reorder_text = (row.get("reorder_level") or "").strip()
+        if reorder_text:
+            try:
+                reorder_level = int(reorder_text)
+            except ValueError as error:
+                raise ValueError(
+                    f"Row {row_number}: reorder level must be a whole number."
+                ) from error
+            if reorder_level < 0:
+                raise ValueError(f"Row {row_number}: reorder level cannot be negative.")
+        else:
+            reorder_level = None
+
+        if quantity < 0:
+            raise ValueError(f"Row {row_number}: quantity cannot be negative.")
+        if not math.isfinite(price) or price < 0:
+            raise ValueError(f"Row {row_number}: price must be a non-negative number.")
+
+        name = name[:1].upper() + name[1:]
+        category = category[:1].upper() + category[1:]
+        normalized_name = name.casefold()
+        if normalized_name in seen_names:
+            raise ValueError(f"Row {row_number}: duplicate product name in the CSV.")
+        seen_names.add(normalized_name)
+
+        item_code = (row.get("item_code") or "").strip()
+        if item_code:
+            normalized_code = item_code.casefold()
+            if normalized_code in seen_codes:
+                raise ValueError(f"Row {row_number}: duplicate item code in the CSV.")
+            seen_codes.add(normalized_code)
+
+        products.append(
+            {
+                "row_number": row_number,
+                "item_code": item_code,
+                "name": name,
+                "category": category,
+                "quantity": quantity,
+                "reorder_level": reorder_level,
+                "price": price,
+            }
+        )
+
+    if not products:
+        raise ValueError("The CSV file does not contain any product rows.")
+    return products
+
+
 @app.get("/register")
 def register():
     if g.user is not None:
@@ -407,6 +515,162 @@ def movements():
         movements=stock_movements,
         username=g.user["username"],
     )
+
+
+@app.get("/export")
+@login_required
+def export_inventory():
+    with closing(connect_db()) as connection:
+        items = connection.execute(
+            """
+            SELECT item_code, name, category, quantity, reorder_level, price
+            FROM items
+            WHERE user_id = ?
+            ORDER BY id
+            """,
+            (g.user["id"],),
+        ).fetchall()
+
+    output = io.StringIO(newline="")
+    writer = csv.writer(output)
+    writer.writerow(("item_code", "name", "category", "quantity", "reorder_level", "price"))
+    for item in items:
+        writer.writerow(
+            (
+                item["item_code"],
+                item["name"],
+                item["category"],
+                item["quantity"],
+                item["reorder_level"],
+                item["price"],
+            )
+        )
+    return Response(
+        "\ufeff" + output.getvalue(),
+        mimetype="text/csv",
+        headers={"Content-Disposition": "attachment; filename=inventory.csv"},
+    )
+
+
+@app.post("/import")
+@login_required
+def import_inventory():
+    upload = request.files.get("file")
+    if upload is None:
+        flash("Choose a CSV file to import.", "error")
+        return redirect(url_for("index"))
+
+    try:
+        products = read_inventory_csv(upload)
+    except (ValueError, csv.Error) as error:
+        flash(f"Could not import CSV: {error}", "error")
+        return redirect(url_for("index"))
+
+    added = 0
+    updated = 0
+    try:
+        with closing(connect_db()) as connection:
+            connection.execute("BEGIN IMMEDIATE")
+            for product in products:
+                existing_item = None
+                if product["item_code"]:
+                    existing_item = connection.execute(
+                        """
+                        SELECT id, quantity, reorder_level
+                        FROM items
+                        WHERE user_id = ? AND item_code = ?
+                        """,
+                        (g.user["id"], product["item_code"]),
+                    ).fetchone()
+                if existing_item is None:
+                    existing_item = connection.execute(
+                        """
+                        SELECT id, quantity, reorder_level
+                        FROM items
+                        WHERE user_id = ? AND name = ? COLLATE NOCASE
+                        """,
+                        (g.user["id"], product["name"]),
+                    ).fetchone()
+
+                reorder_level = product["reorder_level"]
+                if reorder_level is None:
+                    reorder_level = (
+                        existing_item["reorder_level"] if existing_item else 5
+                    )
+
+                if existing_item:
+                    connection.execute(
+                        """
+                        UPDATE items
+                        SET name = ?, category = ?, quantity = ?, reorder_level = ?, price = ?
+                        WHERE id = ? AND user_id = ?
+                        """,
+                        (
+                            product["name"],
+                            product["category"],
+                            product["quantity"],
+                            reorder_level,
+                            product["price"],
+                            existing_item["id"],
+                            g.user["id"],
+                        ),
+                    )
+                    quantity_change = product["quantity"] - existing_item["quantity"]
+                    movement_type = (
+                        "Stock increased" if quantity_change > 0 else "Stock decreased"
+                    )
+                    record_stock_movement(
+                        connection,
+                        g.user["id"],
+                        existing_item["id"],
+                        product["name"],
+                        movement_type,
+                        quantity_change,
+                        product["quantity"],
+                    )
+                    updated += 1
+                else:
+                    cursor = connection.execute(
+                        """
+                        INSERT INTO items
+                            (user_id, name, category, quantity, reorder_level, price)
+                        VALUES (?, ?, ?, ?, ?, ?)
+                        """,
+                        (
+                            g.user["id"],
+                            product["name"],
+                            product["category"],
+                            product["quantity"],
+                            reorder_level,
+                            product["price"],
+                        ),
+                    )
+                    connection.execute(
+                        "UPDATE items SET item_code = ? WHERE id = ?",
+                        (format_item_code(cursor.lastrowid), cursor.lastrowid),
+                    )
+                    record_stock_movement(
+                        connection,
+                        g.user["id"],
+                        cursor.lastrowid,
+                        product["name"],
+                        "Initial stock",
+                        product["quantity"],
+                        product["quantity"],
+                    )
+                    added += 1
+            connection.commit()
+        flash(f"Import complete: added {added} and updated {updated} products.", "success")
+    except sqlite3.IntegrityError:
+        flash(
+            "Import failed because product names or codes conflict with your inventory. "
+            "No rows were imported.",
+            "error",
+        )
+    except sqlite3.Error:
+        app.logger.exception("Could not import inventory CSV")
+        flash("Could not import the inventory. No rows were imported.", "error")
+    return redirect(url_for("index"))
 
 
 @app.get("/")

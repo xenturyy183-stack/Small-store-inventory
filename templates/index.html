@@ -177,6 +177,26 @@
                     {% endif %}
                 </div>
             </div>
+            <div class="csv-tools">
+                <div>
+                    <strong>Product lists</strong>
+                    <p>Import or export CSV. Required columns: name, category, quantity, price. Reorder level is optional.</p>
+                    <p>Imports match by code or product name; new products get an automatic code.</p>
+                </div>
+                <div class="csv-actions">
+                    <a class="topbar-link" href="{{ url_for('export_inventory') }}">Export CSV</a>
+                    <form action="{{ url_for('import_inventory') }}" method="post"
+                          enctype="multipart/form-data" class="csv-import-form">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                        <label class="csv-file-picker" for="inventory-file">
+                            <span id="inventory-file-name">Choose CSV file</span>
+                            <input id="inventory-file" name="file" type="file"
+                                   accept=".csv,text/csv" required class="visually-hidden">
+                        </label>
+                        <button type="submit" class="filter-button">Import CSV</button>
+                    </form>
+                </div>
+            </div>
             <div class="table-wrap">
                 <table class="inventory-table">
                     <thead>
@@ -290,6 +310,12 @@
             itemForm.reset();
             itemForm.action = "{{ url_for('add_item') }}";
             submitButton.textContent = "Add item";
+        });
+
+        document.getElementById("inventory-file").addEventListener("change", (event) => {
+            const fileInput = event.currentTarget;
+            const fileName = fileInput.files.length ? fileInput.files[0].name : "Choose CSV file";
+            document.getElementById("inventory-file-name").textContent = fileName;
         });
 
         document.querySelectorAll(".delete-form").forEach((form) => {
