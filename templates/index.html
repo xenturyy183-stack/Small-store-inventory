@@ -7,22 +7,15 @@
     <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
 </head>
 <body>
-    <main class="container">
-        <header class="topbar">
-            <div class="brand">
-                <span class="brand-mark" aria-hidden="true">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <path d="M3 9l9-5 9 5-9 5-9-5z"></path>
-                        <path d="M3 9v7l9 5 9-5V9"></path>
-                        <path d="M12 14v7"></path>
-                    </svg>
-                </span>
-                <div>
-                    <span class="brand-name">Small Store</span>
-                    <span class="brand-label">Inventory Manager</span>
+    <div class="app-shell">
+        {% include "sidebar.html" %}
+        <main class="main-content">
+            <header class="main-topbar">
+                <div class="page-heading">
+                    <p class="eyebrow">Your store / Overview</p>
+                    <h1>Inventory overview</h1>
+                    <p>Stock, value and what needs attention today.</p>
                 </div>
-            </div>
-            <div class="topbar-actions">
                 <form class="search" action="{{ url_for('index') }}" method="get">
                     {% if category %}
                         <input type="hidden" name="category" value="{{ category }}">
@@ -34,25 +27,7 @@
                     <input type="search" name="search" value="{{ search }}" placeholder="Search inventory">
                     <button type="submit">Search</button>
                 </form>
-                <a class="topbar-link" href="{{ url_for('valuation') }}">Valuation</a>
-                <a class="topbar-link" href="{{ url_for('movements') }}">Movements</a>
-                <div class="user-chip" title="Signed in as {{ username }}">
-                    <span class="user-avatar">{{ username[0]|upper }}</span>
-                    {{ username }}
-                </div>
-                <form action="{{ url_for('logout') }}" method="post">
-                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                    <button type="submit" class="secondary">Log out</button>
-                </form>
-            </div>
-        </header>
-
-        <div class="card-heading" style="margin: 2px 0 18px;">
-            <div>
-                <p class="eyebrow">Store dashboard</p>
-                <h1>Inventory overview</h1>
-            </div>
-        </div>
+            </header>
 
         {% with messages = get_flashed_messages(with_categories=true) %}
             {% if messages %}
@@ -115,7 +90,7 @@
             </article>
         </section>
 
-        <section class="card">
+        <section class="card editor-card">
             <div class="card-heading">
                 <div>
                     <h2>Add or update an item</h2>
@@ -284,7 +259,8 @@
                 </table>
             </div>
         </section>
-    </main>
+        </main>
+    </div>
 
     <script>
         const itemForm = document.getElementById("item-form");

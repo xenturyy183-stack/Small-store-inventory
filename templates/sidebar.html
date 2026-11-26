@@ -1,0 +1,56 @@
+<aside class="side-rail">
+    <a class="sidebar-brand" href="{{ url_for('index') }}">
+        <span class="brand-mark" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M3 9l9-5 9 5-9 5-9-5z"></path>
+                <path d="M3 9v7l9 5 9-5V9"></path>
+                <path d="M12 14v7"></path>
+            </svg>
+        </span>
+        <span class="sidebar-brand-copy">
+            <strong>Small Store</strong>
+            <small>Inventory desk</small>
+        </span>
+    </a>
+
+    <p class="sidebar-label">Workspace</p>
+    <nav class="side-nav" aria-label="Main navigation">
+        <a class="side-link {% if request.endpoint == 'index' %}active{% endif %}"
+           href="{{ url_for('index') }}"
+           {% if request.endpoint == 'index' %}aria-current="page"{% endif %}>
+            <span class="nav-number">01</span>
+            <span>Inventory</span>
+        </a>
+        <a class="side-link {% if request.endpoint == 'valuation' %}active{% endif %}"
+           href="{{ url_for('valuation') }}"
+           {% if request.endpoint == 'valuation' %}aria-current="page"{% endif %}>
+            <span class="nav-number">02</span>
+            <span>Valuation</span>
+        </a>
+        <a class="side-link {% if request.endpoint == 'movements' %}active{% endif %}"
+           href="{{ url_for('movements') }}"
+           {% if request.endpoint == 'movements' %}aria-current="page"{% endif %}>
+            <span class="nav-number">03</span>
+            <span>Stock movements</span>
+        </a>
+    </nav>
+
+    <div class="sidebar-spacer"></div>
+    <div class="sidebar-note">
+        <span>THE DAILY COUNT</span>
+        <p>Little details keep a good store running.</p>
+        <span class="sidebar-note-mark" aria-hidden="true">✳</span>
+    </div>
+
+    <div class="sidebar-profile">
+        <span class="sidebar-avatar">{{ username[0]|upper }}</span>
+        <span class="sidebar-user">
+            <strong>{{ username }}</strong>
+            <small>Store account</small>
+        </span>
+        <form action="{{ url_for('logout') }}" method="post">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <button type="submit" class="sidebar-logout" aria-label="Log out">↗</button>
+        </form>
+    </div>
+</aside>

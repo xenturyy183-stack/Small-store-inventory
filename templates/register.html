@@ -7,37 +7,62 @@
     <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
 </head>
 <body>
-    <main class="auth-container">
-        <section class="card auth-card">
-            <p class="eyebrow">Store inventory</p>
-            <h1>Create an account</h1>
-            <p class="auth-description">Your inventory is kept separate from other accounts.</p>
+    <main class="auth-layout">
+        <section class="auth-story">
+            <a class="auth-brand" href="{{ url_for('login') }}">
+                <span class="brand-mark" aria-hidden="true">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M3 9l9-5 9 5-9 5-9-5z"></path>
+                        <path d="M3 9v7l9 5 9-5V9"></path>
+                        <path d="M12 14v7"></path>
+                    </svg>
+                </span>
+                <span><strong>Small Store</strong><small>Inventory desk</small></span>
+            </a>
+            <div class="auth-story-copy">
+                <p class="auth-kicker">A little more in order</p>
+                <h2>Make room<br>for what’s next.</h2>
+                <p>Start with a clear view of your products, stock levels, and the small details that keep your store moving.</p>
+            </div>
+            <div class="auth-story-footer">
+                <span class="auth-story-symbol" aria-hidden="true">✳</span>
+                <span>Your store’s inventory, all in one place.</span>
+            </div>
+            <span class="auth-orbit auth-orbit-one" aria-hidden="true"></span>
+            <span class="auth-orbit auth-orbit-two" aria-hidden="true"></span>
+        </section>
+        <section class="auth-main">
+            <section class="card auth-card">
+                <p class="eyebrow">Store inventory</p>
+                <h1>Create an account</h1>
+                <p class="auth-description">Your inventory is kept separate from other accounts.</p>
 
-            {% with messages = get_flashed_messages(with_categories=true) %}
-                {% if messages %}
-                    {% for category, message in messages %}
-                        <div class="flash {{ category }}">{{ message }}</div>
-                    {% endfor %}
-                {% endif %}
-            {% endwith %}
+                {% with messages = get_flashed_messages(with_categories=true) %}
+                    {% if messages %}
+                        {% for category, message in messages %}
+                            <div class="flash {{ category }}">{{ message }}</div>
+                        {% endfor %}
+                    {% endif %}
+                {% endwith %}
 
-            <form action="{{ url_for('create_account') }}" method="post" class="auth-form">
-                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                <label>
-                    Username
-                    <input name="username" type="text" required minlength="3" maxlength="32"
-                           pattern="[A-Za-z0-9_]+" autocomplete="username" autofocus>
-                    <small>3–32 letters, numbers, or underscores.</small>
-                </label>
-                <label>
-                    Password
-                    <input name="password" type="password" required minlength="8"
-                           autocomplete="new-password">
-                    <small>Use at least 8 characters.</small>
-                </label>
-                <button type="submit">Create account</button>
-            </form>
-            <p class="auth-switch">Already registered? <a href="{{ url_for('login') }}">Log in</a></p>
+                <form action="{{ url_for('create_account') }}" method="post" class="auth-form">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <label>
+                        Username
+                        <input name="username" type="text" required minlength="3" maxlength="32"
+                               pattern="[A-Za-z0-9_]+" autocomplete="username" autofocus>
+                        <small>3–32 letters, numbers, or underscores.</small>
+                    </label>
+                    <label>
+                        Password
+                        <input name="password" type="password" required minlength="8"
+                               autocomplete="new-password">
+                        <small>Use at least 8 characters.</small>
+                    </label>
+                    <button type="submit">Create account</button>
+                </form>
+                <p class="auth-switch">Already registered? <a href="{{ url_for('login') }}">Log in</a></p>
+            </section>
         </section>
     </main>
 </body>

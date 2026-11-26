@@ -7,33 +7,58 @@
     <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
 </head>
 <body>
-    <main class="auth-container">
-        <section class="card auth-card">
-            <p class="eyebrow">Store inventory</p>
-            <h1>Welcome back</h1>
-            <p class="auth-description">Log in to view your private inventory.</p>
+    <main class="auth-layout">
+        <section class="auth-story">
+            <a class="auth-brand" href="{{ url_for('login') }}">
+                <span class="brand-mark" aria-hidden="true">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M3 9l9-5 9 5-9 5-9-5z"></path>
+                        <path d="M3 9v7l9 5 9-5V9"></path>
+                        <path d="M12 14v7"></path>
+                    </svg>
+                </span>
+                <span><strong>Small Store</strong><small>Inventory desk</small></span>
+            </a>
+            <div class="auth-story-copy">
+                <p class="auth-kicker">A little more in order</p>
+                <h2>Good stock.<br>Good days.</h2>
+                <p>Keep every item, count, and reorder in its place — so you can focus on the people who walk through your door.</p>
+            </div>
+            <div class="auth-story-footer">
+                <span class="auth-story-symbol" aria-hidden="true">✳</span>
+                <span>Made for the everyday work of running a store.</span>
+            </div>
+            <span class="auth-orbit auth-orbit-one" aria-hidden="true"></span>
+            <span class="auth-orbit auth-orbit-two" aria-hidden="true"></span>
+        </section>
+        <section class="auth-main">
+            <section class="card auth-card">
+                <p class="eyebrow">Store inventory</p>
+                <h1>Welcome back</h1>
+                <p class="auth-description">Log in to view your private inventory.</p>
 
-            {% with messages = get_flashed_messages(with_categories=true) %}
-                {% if messages %}
-                    {% for category, message in messages %}
-                        <div class="flash {{ category }}">{{ message }}</div>
-                    {% endfor %}
-                {% endif %}
-            {% endwith %}
+                {% with messages = get_flashed_messages(with_categories=true) %}
+                    {% if messages %}
+                        {% for category, message in messages %}
+                            <div class="flash {{ category }}">{{ message }}</div>
+                        {% endfor %}
+                    {% endif %}
+                {% endwith %}
 
-            <form action="{{ url_for('login') }}" method="post" class="auth-form">
-                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                <label>
-                    Username
-                    <input name="username" type="text" required autocomplete="username" autofocus>
-                </label>
-                <label>
-                    Password
-                    <input name="password" type="password" required autocomplete="current-password">
-                </label>
-                <button type="submit">Log in</button>
-            </form>
-            <p class="auth-switch">New here? <a href="{{ url_for('register') }}">Create an account</a></p>
+                <form action="{{ url_for('login') }}" method="post" class="auth-form">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <label>
+                        Username
+                        <input name="username" type="text" required autocomplete="username" autofocus>
+                    </label>
+                    <label>
+                        Password
+                        <input name="password" type="password" required autocomplete="current-password">
+                    </label>
+                    <button type="submit">Log in</button>
+                </form>
+                <p class="auth-switch">New here? <a href="{{ url_for('register') }}">Create an account</a></p>
+            </section>
         </section>
     </main>
 </body>
