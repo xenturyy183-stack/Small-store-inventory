@@ -24,13 +24,39 @@
 body {
     margin: 0;
     min-height: 100vh;
+    isolation: isolate;
     background:
-        radial-gradient(ellipse at 8% 12%, rgba(80, 119, 238, 0.12), transparent 30rem),
-        radial-gradient(ellipse at 94% 74%, rgba(55, 181, 139, 0.09), transparent 28rem),
-        radial-gradient(circle, rgba(75, 96, 142, 0.075) 1px, transparent 1.4px) 0 0 / 24px 24px,
-        linear-gradient(145deg, #f8faff 0%, var(--canvas) 54%, #f3f8f7 100%);
+        linear-gradient(135deg, #eaf0ff 0%, #f7f9fd 48%, #e6f5f0 100%);
     background-attachment: fixed;
     animation: page-enter 420ms ease-out both;
+}
+
+body::before {
+    position: fixed;
+    z-index: -1;
+    inset: 0;
+    background:
+        radial-gradient(ellipse at 4% 12%, rgba(81, 113, 231, 0.27), transparent 34rem),
+        radial-gradient(ellipse at 96% 70%, rgba(51, 176, 134, 0.2), transparent 32rem),
+        radial-gradient(circle, rgba(54, 75, 122, 0.13) 1px, transparent 1.5px) 0 0 / 28px 28px;
+    content: "";
+    pointer-events: none;
+}
+
+body::after {
+    position: fixed;
+    z-index: -1;
+    top: -190px;
+    right: -155px;
+    width: 440px;
+    height: 440px;
+    border: 1px solid rgba(49, 87, 213, 0.14);
+    border-radius: 50%;
+    box-shadow:
+        0 0 0 34px rgba(49, 87, 213, 0.035),
+        0 0 0 70px rgba(49, 87, 213, 0.025);
+    content: "";
+    pointer-events: none;
 }
 
 @keyframes page-enter {
@@ -587,12 +613,7 @@ th:last-child {
     min-height: 100vh;
     place-items: center;
     padding: 24px;
-    background:
-        radial-gradient(ellipse at 12% 18%, rgba(80, 119, 238, 0.14), transparent 27rem),
-        radial-gradient(ellipse at 88% 82%, rgba(55, 181, 139, 0.1), transparent 25rem),
-        radial-gradient(circle, rgba(75, 96, 142, 0.075) 1px, transparent 1.4px) 0 0 / 24px 24px,
-        linear-gradient(145deg, #f8faff 0%, var(--canvas) 54%, #f3f8f7 100%);
-    background-attachment: fixed;
+    background: transparent;
 }
 
 .auth-card {
