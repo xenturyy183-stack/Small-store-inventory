@@ -53,6 +53,16 @@ def init_db():
                 reorder_level INTEGER NOT NULL DEFAULT 5 CHECK (reorder_level >= 0),
                 price REAL NOT NULL CHECK (price >= 0)
             );
+            CREATE TABLE IF NOT EXISTS stock_movements (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                item_id INTEGER REFERENCES items(id) ON DELETE SET NULL,
+                item_name TEXT NOT NULL,
+                movement_type TEXT NOT NULL,
+                quantity_change INTEGER NOT NULL CHECK (quantity_change != 0),
+                quantity_after INTEGER NOT NULL CHECK (quantity_after >= 0),
+                created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+            );
             """
         )
         item_columns = {
@@ -101,6 +111,12 @@ def init_db():
             """
             CREATE UNIQUE INDEX IF NOT EXISTS unique_item_name_per_user
             ON items (user_id, name COLLATE NOCASE)
+            """
+        )
+        connection.execute(
+            """
+            CREATE INDEX IF NOT EXISTS stock_movements_user_history
+            ON stock_movements (user_id, id DESC)
             """
         )
         connection.commit()
@@ -171,7 +187,14 @@ def import_legacy_inventory(connection, user_id):
             and item["quantity"] >= 0
             and item["price"] >= 0
         ):
-            connection.execute(
+            existing_item = connection.execute(
+                """
+                SELECT id, quantity FROM items
+                WHERE user_id = ? AND name = ? COLLATE NOCASE
+                """,
+                (user_id, item["name"]),
+            ).fetchone()
+            cursor = connection.execute(
                 """
                 INSERT INTO items
                     (user_id, name, category, quantity, reorder_level, price)
@@ -184,6 +207,22 @@ def import_legacy_inventory(connection, user_id):
                     price = excluded.price
                 """,
                 (user_id, item["name"], "Other", item["quantity"], item["price"]),
+            )
+            quantity_change = item["quantity"]
+            movement_type = "Initial stock"
+            if existing_item is not None:
+                quantity_change -= existing_item["quantity"]
+                movement_type = (
+                    "Stock increased" if quantity_change > 0 else "Stock decreased"
+                )
+            record_stock_movement(
+                connection,
+                user_id,
+                existing_item["id"] if existing_item else cursor.lastrowid,
+                item["name"],
+                movement_type,
+                quantity_change,
+                item["quantity"],
             )
 
 
@@ -226,6 +265,21 @@ def read_item_form():
         raise ValueError("Price must be a non-negative number.")
 
     return name, category, quantity, reorder_level, price
+
+
+def record_stock_movement(
+    connection, user_id, item_id, item_name, movement_type, quantity_change, quantity_after
+):
+    if quantity_change == 0:
+        return
+    connection.execute(
+        """
+        INSERT INTO stock_movements
+            (user_id, item_id, item_name, movement_type, quantity_change, quantity_after)
+        VALUES (?, ?, ?, ?, ?, ?)
+        """,
+        (user_id, item_id, item_name, movement_type, quantity_change, quantity_after),
+    )
 
 
 @app.get("/register")
@@ -308,6 +362,27 @@ def logout():
     return redirect(url_for("login"))
 
 
+@app.get("/movements")
+@login_required
+def movements():
+    with closing(connect_db()) as connection:
+        stock_movements = connection.execute(
+            """
+            SELECT item_name, movement_type, quantity_change, quantity_after, created_at
+            FROM stock_movements
+            WHERE user_id = ?
+            ORDER BY id DESC
+            LIMIT 200
+            """,
+            (g.user["id"],),
+        ).fetchall()
+    return render_template(
+        "movements.html",
+        movements=stock_movements,
+        username=g.user["username"],
+    )
+
+
 @app.get("/")
 @login_required
 def index():
@@ -371,25 +446,59 @@ def add_item():
             connection.execute("BEGIN IMMEDIATE")
             existing_item = connection.execute(
                 """
-                SELECT id FROM items
+                SELECT id, quantity FROM items
                 WHERE user_id = ? AND name = ? COLLATE NOCASE
                 """,
                 (g.user["id"], name),
             ).fetchone()
-            connection.execute(
-                """
-                INSERT INTO items
-                    (user_id, name, category, quantity, reorder_level, price)
-                VALUES (?, ?, ?, ?, ?, ?)
-                ON CONFLICT(user_id, name COLLATE NOCASE) DO UPDATE SET
-                    name = excluded.name,
-                    category = excluded.category,
-                    quantity = excluded.quantity,
-                    reorder_level = excluded.reorder_level,
-                    price = excluded.price
-                """,
-                (g.user["id"], name, category, quantity, reorder_level, price),
-            )
+            if existing_item:
+                connection.execute(
+                    """
+                    UPDATE items
+                    SET name = ?, category = ?, quantity = ?, reorder_level = ?, price = ?
+                    WHERE id = ? AND user_id = ?
+                    """,
+                    (
+                        name,
+                        category,
+                        quantity,
+                        reorder_level,
+                        price,
+                        existing_item["id"],
+                        g.user["id"],
+                    ),
+                )
+                quantity_change = quantity - existing_item["quantity"]
+                movement_type = (
+                    "Stock increased" if quantity_change > 0 else "Stock decreased"
+                )
+                record_stock_movement(
+                    connection,
+                    g.user["id"],
+                    existing_item["id"],
+                    name,
+                    movement_type,
+                    quantity_change,
+                    quantity,
+                )
+            else:
+                cursor = connection.execute(
+                    """
+                    INSERT INTO items
+                        (user_id, name, category, quantity, reorder_level, price)
+                    VALUES (?, ?, ?, ?, ?, ?)
+                    """,
+                    (g.user["id"], name, category, quantity, reorder_level, price),
+                )
+                record_stock_movement(
+                    connection,
+                    g.user["id"],
+                    cursor.lastrowid,
+                    name,
+                    "Initial stock",
+                    quantity,
+                    quantity,
+                )
             connection.commit()
         if existing_item:
             flash(f"Updated existing item {name}.", "success")
@@ -409,6 +518,14 @@ def update_item(item_id):
     try:
         name, category, quantity, reorder_level, price = read_item_form()
         with closing(connect_db()) as connection:
+            connection.execute("BEGIN IMMEDIATE")
+            current_item = connection.execute(
+                "SELECT id, name, quantity FROM items WHERE id = ? AND user_id = ?",
+                (item_id, g.user["id"]),
+            ).fetchone()
+            if current_item is None:
+                flash("Item not found in your inventory.", "error")
+                return redirect(url_for("index"))
             duplicate = connection.execute(
                 """
                 SELECT id FROM items
@@ -426,6 +543,19 @@ def update_item(item_id):
                 WHERE id = ? AND user_id = ?
                 """,
                 (name, category, quantity, reorder_level, price, item_id, g.user["id"]),
+            )
+            quantity_change = quantity - current_item["quantity"]
+            movement_type = (
+                "Stock increased" if quantity_change > 0 else "Stock decreased"
+            )
+            record_stock_movement(
+                connection,
+                g.user["id"],
+                item_id,
+                name,
+                movement_type,
+                quantity_change,
+                quantity,
             )
             connection.commit()
         if result.rowcount:
@@ -447,6 +577,23 @@ def update_item(item_id):
 def delete_item(item_id):
     try:
         with closing(connect_db()) as connection:
+            connection.execute("BEGIN IMMEDIATE")
+            item = connection.execute(
+                "SELECT name, quantity FROM items WHERE id = ? AND user_id = ?",
+                (item_id, g.user["id"]),
+            ).fetchone()
+            if item is None:
+                flash("Item not found in your inventory.", "error")
+                return redirect(url_for("index"))
+            record_stock_movement(
+                connection,
+                g.user["id"],
+                item_id,
+                item["name"],
+                "Item deleted",
+                -item["quantity"],
+                0,
+            )
             result = connection.execute(
                 "DELETE FROM items WHERE id = ? AND user_id = ?",
                 (item_id, g.user["id"]),

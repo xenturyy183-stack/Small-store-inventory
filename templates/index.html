@@ -34,6 +34,7 @@
                     <input type="search" name="search" value="{{ search }}" placeholder="Search inventory">
                     <button type="submit">Search</button>
                 </form>
+                <a class="topbar-link" href="{{ url_for('movements') }}">Movements</a>
                 <div class="user-chip" title="Signed in as {{ username }}">
                     <span class="user-avatar">{{ username[0]|upper }}</span>
                     {{ username }}
@@ -177,7 +178,7 @@
                 </div>
             </div>
             <div class="table-wrap">
-                <table>
+                <table class="inventory-table">
                     <thead>
                         <tr>
                             <th>Item</th>

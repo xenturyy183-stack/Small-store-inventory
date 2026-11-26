@@ -1,0 +1,83 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Stock Movements · Small Store Inventory</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
+</head>
+<body>
+    <main class="container">
+        <header class="topbar">
+            <div class="brand">
+                <span class="brand-mark" aria-hidden="true">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M3 9l9-5 9 5-9 5-9-5z"></path>
+                        <path d="M3 9v7l9 5 9-5V9"></path>
+                        <path d="M12 14v7"></path>
+                    </svg>
+                </span>
+                <div>
+                    <span class="brand-name">Small Store</span>
+                    <span class="brand-label">Inventory Manager</span>
+                </div>
+            </div>
+            <div class="topbar-actions">
+                <a class="topbar-link" href="{{ url_for('index') }}">Back to inventory</a>
+                <div class="user-chip" title="Signed in as {{ username }}">
+                    <span class="user-avatar">{{ username[0]|upper }}</span>
+                    {{ username }}
+                </div>
+                <form action="{{ url_for('logout') }}" method="post">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <button type="submit" class="secondary">Log out</button>
+                </form>
+            </div>
+        </header>
+
+        <div class="page-heading">
+            <p class="eyebrow">Inventory activity</p>
+            <h1>Stock movement history</h1>
+            <p>Quantity changes are recorded automatically. Showing the latest 200 movements.</p>
+        </div>
+
+        <section class="card movement-card">
+            <div class="table-wrap">
+                <table class="movement-table">
+                    <thead>
+                        <tr>
+                            <th>Date and time (UTC)</th>
+                            <th>Item</th>
+                            <th>Movement</th>
+                            <th>Change</th>
+                            <th>Stock after</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for movement in movements %}
+                            <tr>
+                                <td data-label="Date and time (UTC)">
+                                    <time>{{ movement.created_at }}</time>
+                                </td>
+                                <td data-label="Item">{{ movement.item_name }}</td>
+                                <td data-label="Movement">{{ movement.movement_type }}</td>
+                                <td data-label="Change">
+                                    <span class="movement-quantity
+                                          {% if movement.quantity_change > 0 %}positive{% else %}negative{% endif %}">
+                                        {% if movement.quantity_change > 0 %}+{% endif %}{{ movement.quantity_change }}
+                                    </span>
+                                </td>
+                                <td data-label="Stock after">{{ movement.quantity_after }}</td>
+                            </tr>
+                        {% else %}
+                            <tr>
+                                <td colspan="5" class="empty">No stock movements have been recorded yet.</td>
+                            </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </section>
+    </main>
+</body>
+</html>
