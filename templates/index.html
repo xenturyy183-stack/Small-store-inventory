@@ -182,6 +182,7 @@
                     <thead>
                         <tr>
                             <th>Item</th>
+                            <th>Code</th>
                             <th>Category</th>
                             <th>Quantity</th>
                             <th>Reorder at</th>
@@ -195,6 +196,9 @@
                             <tr>
                                 <td data-label="Item">
                                     <span class="item-name"><span class="item-dot"></span>{{ item.name }}</span>
+                                </td>
+                                <td data-label="Code">
+                                    <code class="item-code">{{ item.item_code }}</code>
                                 </td>
                                 <td data-label="Category">
                                     <span class="category-tag">{{ item.category }}</span>
@@ -237,7 +241,7 @@
                             </tr>
                         {% else %}
                             <tr>
-                                <td colspan="7" class="empty">No inventory items found.</td>
+                                <td colspan="8" class="empty">No inventory items found.</td>
                             </tr>
                         {% endfor %}
                     </tbody>

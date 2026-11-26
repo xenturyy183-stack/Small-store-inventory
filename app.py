@@ -51,6 +51,7 @@ def init_db():
                 category TEXT NOT NULL DEFAULT 'Other',
                 quantity INTEGER NOT NULL CHECK (quantity >= 0),
                 reorder_level INTEGER NOT NULL DEFAULT 5 CHECK (reorder_level >= 0),
+                item_code TEXT,
                 price REAL NOT NULL CHECK (price >= 0)
             );
             CREATE TABLE IF NOT EXISTS stock_movements (
@@ -79,6 +80,15 @@ def init_db():
                 DEFAULT 5 CHECK (reorder_level >= 0)
                 """
             )
+        if "item_code" not in item_columns:
+            connection.execute("ALTER TABLE items ADD COLUMN item_code TEXT")
+        connection.execute(
+            """
+            UPDATE items
+            SET item_code = 'SKU-' || printf('%06d', id)
+            WHERE item_code IS NULL OR item_code = ''
+            """
+        )
         duplicate_groups = connection.execute(
             """
             SELECT user_id, name COLLATE NOCASE AS normalized_name
@@ -111,6 +121,12 @@ def init_db():
             """
             CREATE UNIQUE INDEX IF NOT EXISTS unique_item_name_per_user
             ON items (user_id, name COLLATE NOCASE)
+            """
+        )
+        connection.execute(
+            """
+            CREATE UNIQUE INDEX IF NOT EXISTS unique_item_code
+            ON items (item_code)
             """
         )
         connection.execute(
@@ -208,6 +224,12 @@ def import_legacy_inventory(connection, user_id):
                 """,
                 (user_id, item["name"], "Other", item["quantity"], item["price"]),
             )
+            item_id = existing_item["id"] if existing_item else cursor.lastrowid
+            if existing_item is None:
+                connection.execute(
+                    "UPDATE items SET item_code = ? WHERE id = ?",
+                    (format_item_code(item_id), item_id),
+                )
             quantity_change = item["quantity"]
             movement_type = "Initial stock"
             if existing_item is not None:
@@ -218,7 +240,7 @@ def import_legacy_inventory(connection, user_id):
             record_stock_movement(
                 connection,
                 user_id,
-                existing_item["id"] if existing_item else cursor.lastrowid,
+                item_id,
                 item["name"],
                 movement_type,
                 quantity_change,
@@ -280,6 +302,10 @@ def record_stock_movement(
         """,
         (user_id, item_id, item_name, movement_type, quantity_change, quantity_after),
     )
+
+
+def format_item_code(item_id):
+    return f"SKU-{item_id:06d}"
 
 
 @app.get("/register")
@@ -403,7 +429,8 @@ def index():
             parameters.append(category)
         items = connection.execute(
             f"""
-            SELECT id, name, category, quantity, reorder_level, price FROM items
+            SELECT id, name, category, quantity, reorder_level, item_code, price
+            FROM items
             WHERE {" AND ".join(conditions)}
             ORDER BY id
             """,
@@ -489,6 +516,10 @@ def add_item():
                     VALUES (?, ?, ?, ?, ?, ?)
                     """,
                     (g.user["id"], name, category, quantity, reorder_level, price),
+                )
+                connection.execute(
+                    "UPDATE items SET item_code = ? WHERE id = ?",
+                    (format_item_code(cursor.lastrowid), cursor.lastrowid),
                 )
                 record_stock_movement(
                     connection,

@@ -543,10 +543,10 @@ tbody tr:not(:last-child) td {
     transition: border-color 140ms ease;
 }
 
-.inventory-table th:nth-child(3), .inventory-table th:nth-child(4),
-.inventory-table th:nth-child(5), .inventory-table th:nth-child(6),
-.inventory-table td:nth-child(3), .inventory-table td:nth-child(4),
-.inventory-table td:nth-child(5), .inventory-table td:nth-child(6) {
+.inventory-table th:nth-child(4), .inventory-table th:nth-child(5),
+.inventory-table th:nth-child(6), .inventory-table th:nth-child(7),
+.inventory-table td:nth-child(4), .inventory-table td:nth-child(5),
+.inventory-table td:nth-child(6), .inventory-table td:nth-child(7) {
     text-align: right;
 }
 
@@ -578,6 +578,18 @@ th:last-child {
     align-items: center;
     gap: 10px;
     font-weight: 700;
+}
+
+.item-code {
+    display: inline-block;
+    border: 1px solid #e8edf4;
+    border-radius: 6px;
+    padding: 4px 7px;
+    background: #f8faff;
+    color: #64748b;
+    font-family: Consolas, "Courier New", monospace;
+    font-size: 0.78rem;
+    white-space: nowrap;
 }
 
 .item-dot {
