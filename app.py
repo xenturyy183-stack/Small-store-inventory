@@ -192,6 +192,26 @@ def inject_csrf_token():
     return {"csrf_token": csrf_token}
 
 
+def csv_attachment(filename, headers, rows):
+    output = io.StringIO(newline="")
+    writer = csv.writer(output)
+    writer.writerow(headers)
+    writer.writerows(rows)
+    return Response(
+        "\ufeff" + output.getvalue(),
+        mimetype="text/csv",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
+
+def spreadsheet_text(value):
+    if isinstance(value, str):
+        first_character = value.lstrip(" \t\r\n")[:1]
+        if first_character in ("=", "+", "-", "@"):
+            return "'" + value
+    return value
+
+
 @app.before_request
 def protect_post_requests():
     if request.method == "POST":
@@ -582,6 +602,35 @@ def movements():
     )
 
 
+@app.get("/export/movements")
+@login_required
+def export_movements():
+    with closing(connect_db()) as connection:
+        stock_movements = connection.execute(
+            """
+            SELECT item_name, movement_type, quantity_change, quantity_after, created_at
+            FROM stock_movements
+            WHERE user_id = ?
+            ORDER BY id DESC
+            """,
+            (g.user["id"],),
+        ).fetchall()
+    return csv_attachment(
+        "stock-movements.csv",
+        ("date_time_utc", "item", "movement", "quantity_change", "quantity_after"),
+        (
+            (
+                movement["created_at"],
+                spreadsheet_text(movement["item_name"]),
+                spreadsheet_text(movement["movement_type"]),
+                movement["quantity_change"],
+                movement["quantity_after"],
+            )
+            for movement in stock_movements
+        ),
+    )
+
+
 @app.get("/snapshots")
 @login_required
 def snapshots():
@@ -711,18 +760,109 @@ def snapshot_detail(snapshot_id):
     )
 
 
-@app.get("/valuation")
+@app.get("/snapshots/<int:snapshot_id>/export")
 @login_required
-def valuation():
+def export_snapshot(snapshot_id):
+    with closing(connect_db()) as connection:
+        saved_snapshot = connection.execute(
+            """
+            SELECT id, created_at, product_count, total_units, listed_value,
+                   cost_value, uncosted_count
+            FROM inventory_snapshots
+            WHERE id = ? AND user_id = ?
+            """,
+            (snapshot_id, g.user["id"]),
+        ).fetchone()
+        if saved_snapshot is None:
+            flash("Snapshot not found.", "error")
+            return redirect(url_for("snapshots"))
+        items = connection.execute(
+            """
+            SELECT item_code, name, category, quantity, reorder_level,
+                   unit_cost, price
+            FROM inventory_snapshot_items
+            WHERE snapshot_id = ?
+            ORDER BY category COLLATE NOCASE, name COLLATE NOCASE
+            """,
+            (saved_snapshot["id"],),
+        ).fetchall()
+
+    rows = [
+        (
+            "SNAPSHOT",
+            saved_snapshot["id"],
+            saved_snapshot["created_at"],
+            "",
+            "",
+            "",
+            saved_snapshot["product_count"],
+            saved_snapshot["uncosted_count"],
+            saved_snapshot["total_units"],
+            "",
+            "",
+            "",
+            "",
+            saved_snapshot["cost_value"],
+            saved_snapshot["listed_value"],
+        )
+    ]
+    rows.extend(
+        (
+            "PRODUCT",
+            saved_snapshot["id"],
+            saved_snapshot["created_at"],
+            spreadsheet_text(item["item_code"]),
+            spreadsheet_text(item["name"]),
+            spreadsheet_text(item["category"]),
+            "",
+            "",
+            "",
+            item["quantity"],
+            item["reorder_level"],
+            item["unit_cost"] if item["unit_cost"] is not None else "",
+            item["price"],
+            (
+                item["quantity"] * item["unit_cost"]
+                if item["unit_cost"] is not None
+                else ""
+            ),
+            item["quantity"] * item["price"],
+        )
+        for item in items
+    )
+    return csv_attachment(
+        "inventory-snapshot-{}.csv".format(saved_snapshot["id"]),
+        (
+            "record_type",
+            "snapshot_id",
+            "saved_at_utc",
+            "item_code",
+            "product",
+            "category",
+            "product_count",
+            "products_without_cost",
+            "total_units",
+            "quantity",
+            "reorder_level",
+            "unit_cost",
+            "unit_price",
+            "cost_valuation",
+            "listed_price_value",
+        ),
+        rows,
+    )
+
+
+def load_valuation_report(user_id):
     with closing(connect_db()) as connection:
         items = connection.execute(
             """
-            SELECT item_code, name, category, quantity, unit_cost
+            SELECT item_code, name, category, quantity, unit_cost, price
             FROM items
             WHERE user_id = ?
             ORDER BY category COLLATE NOCASE, name COLLATE NOCASE
             """,
-            (g.user["id"],),
+            (user_id,),
         ).fetchall()
         category_totals = connection.execute(
             """
@@ -734,13 +874,14 @@ def valuation():
                     SUM(CASE WHEN unit_cost IS NOT NULL
                         THEN quantity * unit_cost ELSE 0 END),
                     0
-                ) AS value
+                ) AS value,
+                COALESCE(SUM(quantity * price), 0) AS listed_value
             FROM items
             WHERE user_id = ?
             GROUP BY category COLLATE NOCASE
             ORDER BY category COLLATE NOCASE
             """,
-            (g.user["id"],),
+            (user_id,),
         ).fetchall()
 
     total_value = sum(
@@ -750,14 +891,99 @@ def valuation():
     )
     valued_products = sum(item["unit_cost"] is not None for item in items)
     uncosted_products = len(items) - valued_products
+    return {
+        "items": items,
+        "category_totals": category_totals,
+        "total_value": total_value,
+        "valued_products": valued_products,
+        "uncosted_products": uncosted_products,
+        "total_units": sum(item["quantity"] for item in items),
+        "listed_value": sum(item["quantity"] * item["price"] for item in items),
+    }
+
+
+@app.get("/valuation")
+@login_required
+def valuation():
+    report = load_valuation_report(g.user["id"])
     return render_template(
         "valuation.html",
-        items=items,
-        category_totals=category_totals,
-        total_value=total_value,
-        valued_products=valued_products,
-        uncosted_products=uncosted_products,
+        **report,
         username=g.user["username"],
+    )
+
+
+@app.get("/export/valuation")
+@login_required
+def export_valuation():
+    report = load_valuation_report(g.user["id"])
+    rows = [
+        (
+            "TOTAL",
+            "",
+            "",
+            "",
+            len(report["items"]),
+            report["uncosted_products"],
+            report["total_units"],
+            "",
+            "",
+            report["total_value"],
+            report["listed_value"],
+        )
+    ]
+    rows.extend(
+        (
+            "CATEGORY",
+            spreadsheet_text(category["category"]),
+            "",
+            "",
+            category["product_count"],
+            category["uncosted_count"],
+            "",
+            "",
+            "",
+            category["value"],
+            category["listed_value"],
+        )
+        for category in report["category_totals"]
+    )
+    rows.extend(
+        (
+            "PRODUCT",
+            spreadsheet_text(item["category"]),
+            spreadsheet_text(item["item_code"]),
+            spreadsheet_text(item["name"]),
+            "",
+            "",
+            item["quantity"],
+            item["unit_cost"] if item["unit_cost"] is not None else "",
+            item["price"],
+            (
+                item["quantity"] * item["unit_cost"]
+                if item["unit_cost"] is not None
+                else ""
+            ),
+            item["quantity"] * item["price"],
+        )
+        for item in report["items"]
+    )
+    return csv_attachment(
+        "valuation-report.csv",
+        (
+            "record_type",
+            "category",
+            "item_code",
+            "product",
+            "product_count",
+            "products_without_cost",
+            "on_hand",
+            "unit_cost",
+            "unit_price",
+            "cost_valuation",
+            "listed_price_value",
+        ),
+        rows,
     )
 
 
@@ -775,13 +1001,10 @@ def export_inventory():
             (g.user["id"],),
         ).fetchall()
 
-    output = io.StringIO(newline="")
-    writer = csv.writer(output)
-    writer.writerow(
-        ("item_code", "name", "category", "quantity", "reorder_level", "unit_cost", "price")
-    )
-    for item in items:
-        writer.writerow(
+    return csv_attachment(
+        "inventory.csv",
+        ("item_code", "name", "category", "quantity", "reorder_level", "unit_cost", "price"),
+        (
             (
                 item["item_code"],
                 item["name"],
@@ -791,11 +1014,8 @@ def export_inventory():
                 item["unit_cost"] if item["unit_cost"] is not None else "",
                 item["price"],
             )
-        )
-    return Response(
-        "\ufeff" + output.getvalue(),
-        mimetype="text/csv",
-        headers={"Content-Disposition": "attachment; filename=inventory.csv"},
+            for item in items
+        ),
     )
 
 

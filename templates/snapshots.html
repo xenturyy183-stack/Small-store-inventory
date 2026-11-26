@@ -23,7 +23,10 @@
                     {% endif %}
                 </div>
                 {% if snapshot %}
-                    <a class="topbar-link" href="{{ url_for('snapshots') }}">Back to snapshots</a>
+                    <div class="header-actions">
+                        <a class="topbar-link" href="{{ url_for('export_snapshot', snapshot_id=snapshot.id) }}">Download CSV</a>
+                        <a class="topbar-link" href="{{ url_for('snapshots') }}">Back to snapshots</a>
+                    </div>
                 {% else %}
                     <form class="snapshot-save-form" action="{{ url_for('save_snapshot') }}" method="post">
                         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
@@ -140,7 +143,7 @@
                                     <th>Total units</th>
                                     <th>Cost valuation</th>
                                     <th>Value at unit price</th>
-                                    <th>Details</th>
+                                    <th>Actions</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -151,8 +154,11 @@
                                         <td data-label="Total units">{{ saved.total_units }}</td>
                                         <td data-label="Cost valuation">${{ "%.2f"|format(saved.cost_value) }}</td>
                                         <td data-label="Value at unit price">${{ "%.2f"|format(saved.listed_value) }}</td>
-                                        <td data-label="Details">
-                                            <a class="snapshot-view-link" href="{{ url_for('snapshot_detail', snapshot_id=saved.id) }}">View snapshot</a>
+                                        <td data-label="Actions">
+                                            <div class="snapshot-actions">
+                                                <a class="snapshot-view-link" href="{{ url_for('snapshot_detail', snapshot_id=saved.id) }}">View</a>
+                                                <a class="snapshot-view-link" href="{{ url_for('export_snapshot', snapshot_id=saved.id) }}">CSV</a>
+                                            </div>
                                         </td>
                                     </tr>
                                 {% else %}

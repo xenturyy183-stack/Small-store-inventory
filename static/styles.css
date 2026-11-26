@@ -1425,6 +1425,12 @@ th:last-child {
     background: #dce9dc;
 }
 
+.snapshot-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 6px;
+}
+
 .snapshot-list-table th:nth-child(n+2),
 .snapshot-list-table td:nth-child(n+2),
 .snapshot-detail-table th:nth-child(n+4),

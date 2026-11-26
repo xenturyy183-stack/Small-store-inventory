@@ -16,7 +16,10 @@
                     <h1>Stock movement history</h1>
                     <p>Quantity changes are recorded automatically. Showing the latest 200 movements.</p>
                 </div>
-                <a class="topbar-link" href="{{ url_for('index') }}">Back to inventory</a>
+                <div class="header-actions">
+                    <a class="topbar-link" href="{{ url_for('export_movements') }}">Download full CSV</a>
+                    <a class="topbar-link" href="{{ url_for('index') }}">Back to inventory</a>
+                </div>
             </header>
 
         <section class="card movement-card">

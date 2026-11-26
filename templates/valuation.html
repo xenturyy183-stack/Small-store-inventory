@@ -16,7 +16,10 @@
                     <h1>Inventory valuation</h1>
                     <p>Current on-hand quantity multiplied by unit cost. Products without a unit cost are excluded from the total.</p>
                 </div>
-                <a class="topbar-link" href="{{ url_for('index') }}">Back to inventory</a>
+                <div class="header-actions">
+                    <a class="topbar-link" href="{{ url_for('export_valuation') }}">Download CSV</a>
+                    <a class="topbar-link" href="{{ url_for('index') }}">Back to inventory</a>
+                </div>
             </header>
 
         <section class="summary valuation-summary" aria-label="Valuation summary">
