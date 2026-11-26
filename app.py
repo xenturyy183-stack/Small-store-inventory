@@ -55,6 +55,7 @@ def init_db():
                 quantity INTEGER NOT NULL CHECK (quantity >= 0),
                 reorder_level INTEGER NOT NULL DEFAULT 5 CHECK (reorder_level >= 0),
                 item_code TEXT,
+                unit_cost REAL CHECK (unit_cost IS NULL OR unit_cost >= 0),
                 price REAL NOT NULL CHECK (price >= 0)
             );
             CREATE TABLE IF NOT EXISTS stock_movements (
@@ -85,6 +86,10 @@ def init_db():
             )
         if "item_code" not in item_columns:
             connection.execute("ALTER TABLE items ADD COLUMN item_code TEXT")
+        if "unit_cost" not in item_columns:
+            connection.execute(
+                "ALTER TABLE items ADD COLUMN unit_cost REAL CHECK (unit_cost IS NULL OR unit_cost >= 0)"
+            )
         connection.execute(
             """
             UPDATE items
@@ -258,6 +263,7 @@ def read_item_form():
     category = category[:1].upper() + category[1:]
     quantity_text = request.form.get("quantity", "").strip()
     reorder_level_text = request.form.get("reorder_level", "").strip()
+    unit_cost_text = request.form.get("unit_cost", "").strip()
     price_text = request.form.get("price", "").strip()
 
     if not name:
@@ -277,6 +283,14 @@ def read_item_form():
     except ValueError as error:
         raise ValueError("Reorder level must be a whole number.") from error
 
+    if unit_cost_text:
+        try:
+            unit_cost = float(unit_cost_text)
+        except ValueError as error:
+            raise ValueError("Unit cost must be a number.") from error
+    else:
+        unit_cost = None
+
     try:
         price = float(price_text)
     except ValueError as error:
@@ -286,10 +300,12 @@ def read_item_form():
         raise ValueError("Quantity cannot be negative.")
     if reorder_level < 0:
         raise ValueError("Reorder level cannot be negative.")
+    if unit_cost is not None and (not math.isfinite(unit_cost) or unit_cost < 0):
+        raise ValueError("Unit cost must be a non-negative number.")
     if not math.isfinite(price) or price < 0:
         raise ValueError("Price must be a non-negative number.")
 
-    return name, category, quantity, reorder_level, price
+    return name, category, quantity, reorder_level, unit_cost, price
 
 
 def record_stock_movement(
@@ -367,6 +383,21 @@ def read_inventory_csv(upload):
                 f"Row {row_number}: quantity must be a whole number and price must be numeric."
             ) from error
 
+        unit_cost_text = (row.get("unit_cost") or "").strip()
+        if unit_cost_text:
+            try:
+                unit_cost = float(unit_cost_text)
+            except ValueError as error:
+                raise ValueError(
+                    f"Row {row_number}: unit cost must be numeric."
+                ) from error
+            if not math.isfinite(unit_cost) or unit_cost < 0:
+                raise ValueError(
+                    f"Row {row_number}: unit cost must be a non-negative number."
+                )
+        else:
+            unit_cost = None
+
         reorder_text = (row.get("reorder_level") or "").strip()
         if reorder_text:
             try:
@@ -407,6 +438,7 @@ def read_inventory_csv(upload):
                 "category": category,
                 "quantity": quantity,
                 "reorder_level": reorder_level,
+                "unit_cost": unit_cost,
                 "price": price,
             }
         )
@@ -517,13 +549,63 @@ def movements():
     )
 
 
+@app.get("/valuation")
+@login_required
+def valuation():
+    with closing(connect_db()) as connection:
+        items = connection.execute(
+            """
+            SELECT item_code, name, category, quantity, unit_cost
+            FROM items
+            WHERE user_id = ?
+            ORDER BY category COLLATE NOCASE, name COLLATE NOCASE
+            """,
+            (g.user["id"],),
+        ).fetchall()
+        category_totals = connection.execute(
+            """
+            SELECT
+                MIN(category) AS category,
+                COUNT(*) AS product_count,
+                COUNT(CASE WHEN unit_cost IS NULL THEN 1 END) AS uncosted_count,
+                COALESCE(
+                    SUM(CASE WHEN unit_cost IS NOT NULL
+                        THEN quantity * unit_cost ELSE 0 END),
+                    0
+                ) AS value
+            FROM items
+            WHERE user_id = ?
+            GROUP BY category COLLATE NOCASE
+            ORDER BY category COLLATE NOCASE
+            """,
+            (g.user["id"],),
+        ).fetchall()
+
+    total_value = sum(
+        item["quantity"] * item["unit_cost"]
+        for item in items
+        if item["unit_cost"] is not None
+    )
+    valued_products = sum(item["unit_cost"] is not None for item in items)
+    uncosted_products = len(items) - valued_products
+    return render_template(
+        "valuation.html",
+        items=items,
+        category_totals=category_totals,
+        total_value=total_value,
+        valued_products=valued_products,
+        uncosted_products=uncosted_products,
+        username=g.user["username"],
+    )
+
+
 @app.get("/export")
 @login_required
 def export_inventory():
     with closing(connect_db()) as connection:
         items = connection.execute(
             """
-            SELECT item_code, name, category, quantity, reorder_level, price
+            SELECT item_code, name, category, quantity, reorder_level, unit_cost, price
             FROM items
             WHERE user_id = ?
             ORDER BY id
@@ -533,7 +615,9 @@ def export_inventory():
 
     output = io.StringIO(newline="")
     writer = csv.writer(output)
-    writer.writerow(("item_code", "name", "category", "quantity", "reorder_level", "price"))
+    writer.writerow(
+        ("item_code", "name", "category", "quantity", "reorder_level", "unit_cost", "price")
+    )
     for item in items:
         writer.writerow(
             (
@@ -542,6 +626,7 @@ def export_inventory():
                 item["category"],
                 item["quantity"],
                 item["reorder_level"],
+                item["unit_cost"] if item["unit_cost"] is not None else "",
                 item["price"],
             )
         )
@@ -576,7 +661,7 @@ def import_inventory():
                 if product["item_code"]:
                     existing_item = connection.execute(
                         """
-                        SELECT id, quantity, reorder_level
+                        SELECT id, quantity, reorder_level, unit_cost
                         FROM items
                         WHERE user_id = ? AND item_code = ?
                         """,
@@ -585,7 +670,7 @@ def import_inventory():
                 if existing_item is None:
                     existing_item = connection.execute(
                         """
-                        SELECT id, quantity, reorder_level
+                        SELECT id, quantity, reorder_level, unit_cost
                         FROM items
                         WHERE user_id = ? AND name = ? COLLATE NOCASE
                         """,
@@ -597,12 +682,16 @@ def import_inventory():
                     reorder_level = (
                         existing_item["reorder_level"] if existing_item else 5
                     )
+                unit_cost = product["unit_cost"]
+                if unit_cost is None and existing_item:
+                    unit_cost = existing_item["unit_cost"]
 
                 if existing_item:
                     connection.execute(
                         """
                         UPDATE items
-                        SET name = ?, category = ?, quantity = ?, reorder_level = ?, price = ?
+                        SET name = ?, category = ?, quantity = ?, reorder_level = ?,
+                            unit_cost = ?, price = ?
                         WHERE id = ? AND user_id = ?
                         """,
                         (
@@ -610,6 +699,7 @@ def import_inventory():
                             product["category"],
                             product["quantity"],
                             reorder_level,
+                            unit_cost,
                             product["price"],
                             existing_item["id"],
                             g.user["id"],
@@ -633,8 +723,8 @@ def import_inventory():
                     cursor = connection.execute(
                         """
                         INSERT INTO items
-                            (user_id, name, category, quantity, reorder_level, price)
-                        VALUES (?, ?, ?, ?, ?, ?)
+                            (user_id, name, category, quantity, reorder_level, unit_cost, price)
+                        VALUES (?, ?, ?, ?, ?, ?, ?)
                         """,
                         (
                             g.user["id"],
@@ -642,6 +732,7 @@ def import_inventory():
                             product["category"],
                             product["quantity"],
                             reorder_level,
+                            unit_cost,
                             product["price"],
                         ),
                     )
@@ -693,7 +784,7 @@ def index():
             parameters.append(category)
         items = connection.execute(
             f"""
-            SELECT id, name, category, quantity, reorder_level, item_code, price
+            SELECT id, name, category, quantity, reorder_level, item_code, unit_cost, price
             FROM items
             WHERE {" AND ".join(conditions)}
             ORDER BY id
@@ -732,21 +823,24 @@ def index():
 @login_required
 def add_item():
     try:
-        name, category, quantity, reorder_level, price = read_item_form()
+        name, category, quantity, reorder_level, unit_cost, price = read_item_form()
         with closing(connect_db()) as connection:
             connection.execute("BEGIN IMMEDIATE")
             existing_item = connection.execute(
                 """
-                SELECT id, quantity FROM items
+                SELECT id, quantity, unit_cost FROM items
                 WHERE user_id = ? AND name = ? COLLATE NOCASE
                 """,
                 (g.user["id"], name),
             ).fetchone()
             if existing_item:
+                if unit_cost is None:
+                    unit_cost = existing_item["unit_cost"]
                 connection.execute(
                     """
                     UPDATE items
-                    SET name = ?, category = ?, quantity = ?, reorder_level = ?, price = ?
+                    SET name = ?, category = ?, quantity = ?, reorder_level = ?,
+                        unit_cost = ?, price = ?
                     WHERE id = ? AND user_id = ?
                     """,
                     (
@@ -754,6 +848,7 @@ def add_item():
                         category,
                         quantity,
                         reorder_level,
+                        unit_cost,
                         price,
                         existing_item["id"],
                         g.user["id"],
@@ -776,10 +871,18 @@ def add_item():
                 cursor = connection.execute(
                     """
                     INSERT INTO items
-                        (user_id, name, category, quantity, reorder_level, price)
-                    VALUES (?, ?, ?, ?, ?, ?)
+                        (user_id, name, category, quantity, reorder_level, unit_cost, price)
+                    VALUES (?, ?, ?, ?, ?, ?, ?)
                     """,
-                    (g.user["id"], name, category, quantity, reorder_level, price),
+                    (
+                        g.user["id"],
+                        name,
+                        category,
+                        quantity,
+                        reorder_level,
+                        unit_cost,
+                        price,
+                    ),
                 )
                 connection.execute(
                     "UPDATE items SET item_code = ? WHERE id = ?",
@@ -811,7 +914,7 @@ def add_item():
 @login_required
 def update_item(item_id):
     try:
-        name, category, quantity, reorder_level, price = read_item_form()
+        name, category, quantity, reorder_level, unit_cost, price = read_item_form()
         with closing(connect_db()) as connection:
             connection.execute("BEGIN IMMEDIATE")
             current_item = connection.execute(
@@ -834,10 +937,20 @@ def update_item(item_id):
             result = connection.execute(
                 """
                 UPDATE items
-                SET name = ?, category = ?, quantity = ?, reorder_level = ?, price = ?
+                SET name = ?, category = ?, quantity = ?, reorder_level = ?,
+                    unit_cost = ?, price = ?
                 WHERE id = ? AND user_id = ?
                 """,
-                (name, category, quantity, reorder_level, price, item_id, g.user["id"]),
+                (
+                    name,
+                    category,
+                    quantity,
+                    reorder_level,
+                    unit_cost,
+                    price,
+                    item_id,
+                    g.user["id"],
+                ),
             )
             quantity_change = quantity - current_item["quantity"]
             movement_type = (

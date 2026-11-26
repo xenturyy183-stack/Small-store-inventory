@@ -319,6 +319,10 @@ button:active, .table-heading a:active {
     margin-bottom: 18px;
 }
 
+.valuation-summary {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
 .summary article, .card {
     border: 1px solid var(--line);
     border-radius: 12px;
@@ -443,7 +447,7 @@ button:active, .table-heading a:active {
 
 .item-form {
     display: grid;
-    grid-template-columns: 2fr 1.4fr 0.8fr 1.1fr 1fr auto;
+    grid-template-columns: 2fr 1.4fr 0.8fr 1.1fr 1fr 1fr auto;
     align-items: end;
     gap: 14px;
     margin-top: 18px;
@@ -455,6 +459,12 @@ button:active, .table-heading a:active {
     color: #4d5b72;
     font-size: 0.88rem;
     font-weight: 700;
+}
+
+.item-form small {
+    color: var(--muted);
+    font-size: 0.76rem;
+    font-weight: 400;
 }
 
 .form-actions {
@@ -595,8 +605,10 @@ tbody tr:not(:last-child) td {
 
 .inventory-table th:nth-child(4), .inventory-table th:nth-child(5),
 .inventory-table th:nth-child(6), .inventory-table th:nth-child(7),
+.inventory-table th:nth-child(8),
 .inventory-table td:nth-child(4), .inventory-table td:nth-child(5),
-.inventory-table td:nth-child(6), .inventory-table td:nth-child(7) {
+.inventory-table td:nth-child(6), .inventory-table td:nth-child(7),
+.inventory-table td:nth-child(8) {
     text-align: right;
 }
 
@@ -609,6 +621,19 @@ th:last-child {
 .movement-table td:nth-child(4),
 .movement-table td:nth-child(5) {
     text-align: right;
+}
+
+.valuation-category-table th:nth-child(n+2),
+.valuation-category-table td:nth-child(n+2),
+.valuation-detail-table th:nth-child(n+4),
+.valuation-detail-table td:nth-child(n+4) {
+    text-align: right;
+}
+
+.unknown-cost {
+    color: var(--muted);
+    font-size: 0.84rem;
+    font-style: italic;
 }
 
 .movement-quantity {

@@ -34,6 +34,7 @@
                     <input type="search" name="search" value="{{ search }}" placeholder="Search inventory">
                     <button type="submit">Search</button>
                 </form>
+                <a class="topbar-link" href="{{ url_for('valuation') }}">Valuation</a>
                 <a class="topbar-link" href="{{ url_for('movements') }}">Movements</a>
                 <div class="user-chip" title="Signed in as {{ username }}">
                     <span class="user-avatar">{{ username[0]|upper }}</span>
@@ -90,7 +91,7 @@
             </article>
             <article>
                 <div class="metric-copy">
-                    <span>Inventory value</span>
+                    <span>Value at unit price</span>
                     <strong>${{ "%.2f"|format(total_value) }}</strong>
                 </div>
                 <span class="metric-icon value" aria-hidden="true">
@@ -142,6 +143,12 @@
                            value="5" required>
                 </label>
                 <label>
+                    Unit cost
+                    <input id="unit_cost" name="unit_cost" type="number" min="0" step="0.01"
+                           placeholder="Optional">
+                    <small>Used in valuation reports.</small>
+                </label>
+                <label>
                     Unit price
                     <input id="price" name="price" type="number" min="0" step="0.01" required>
                 </label>
@@ -180,7 +187,7 @@
             <div class="csv-tools">
                 <div>
                     <strong>Product lists</strong>
-                    <p>Import or export CSV. Required columns: name, category, quantity, price. Reorder level is optional.</p>
+                    <p>Import or export CSV. Required columns: name, category, quantity, price. Reorder level and unit cost are optional.</p>
                     <p>Imports match by code or product name; new products get an automatic code.</p>
                 </div>
                 <div class="csv-actions">
@@ -206,8 +213,9 @@
                             <th>Category</th>
                             <th>Quantity</th>
                             <th>Reorder at</th>
+                            <th>Unit cost</th>
                             <th>Unit price</th>
-                            <th>Stock value</th>
+                            <th>Listed-price value</th>
                             <th>Actions</th>
                         </tr>
                     </thead>
@@ -240,8 +248,15 @@
                                     {% endif %}
                                 </td>
                                 <td data-label="Reorder at">{{ item.reorder_level }}</td>
+                                <td data-label="Unit cost">
+                                    {% if item.unit_cost is none %}
+                                        <span class="unknown-cost">Not set</span>
+                                    {% else %}
+                                        ${{ "%.2f"|format(item.unit_cost) }}
+                                    {% endif %}
+                                </td>
                                 <td data-label="Unit price">${{ "%.2f"|format(item.price) }}</td>
-                                <td data-label="Stock value">${{ "%.2f"|format(item.quantity * item.price) }}</td>
+                                <td data-label="Listed-price value">${{ "%.2f"|format(item.quantity * item.price) }}</td>
                                 <td data-label="Actions" class="actions">
                                     <div class="action-buttons">
                                         <button type="button" class="edit-button"
@@ -249,6 +264,7 @@
                                                 data-category="{{ item.category }}"
                                                 data-quantity="{{ item.quantity }}"
                                                 data-reorder-level="{{ item.reorder_level }}"
+                                                data-unit-cost="{{ item.unit_cost if item.unit_cost is not none else '' }}"
                                                 data-price="{{ item.price }}"
                                                 data-update-url="{{ url_for('update_item', item_id=item.id) }}">Edit</button>
                                         <form action="{{ url_for('delete_item', item_id=item.id) }}" method="post"
@@ -261,7 +277,7 @@
                             </tr>
                         {% else %}
                             <tr>
-                                <td colspan="8" class="empty">No inventory items found.</td>
+                                <td colspan="9" class="empty">No inventory items found.</td>
                             </tr>
                         {% endfor %}
                     </tbody>
@@ -298,6 +314,7 @@
                 document.getElementById("category").value = button.dataset.category;
                 document.getElementById("quantity").value = button.dataset.quantity;
                 document.getElementById("reorder_level").value = button.dataset.reorderLevel;
+                document.getElementById("unit_cost").value = button.dataset.unitCost;
                 document.getElementById("price").value = button.dataset.price;
                 itemForm.action = button.dataset.updateUrl;
                 submitButton.textContent = "Update item";
