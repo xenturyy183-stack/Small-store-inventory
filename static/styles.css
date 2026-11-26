@@ -27,6 +27,27 @@ body {
     background:
         radial-gradient(circle at top right, rgba(49, 87, 213, 0.05), transparent 28rem),
         var(--canvas);
+    animation: page-enter 420ms ease-out both;
+}
+
+@keyframes page-enter {
+    from {
+        opacity: 0;
+    }
+    to {
+        opacity: 1;
+    }
+}
+
+@keyframes rise-in {
+    from {
+        opacity: 0;
+        transform: translateY(10px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
 }
 
 .container {
@@ -58,6 +79,12 @@ body {
     background: var(--primary);
     color: white;
     box-shadow: 0 8px 18px rgba(49, 87, 213, 0.22);
+    transition: transform 180ms ease, box-shadow 180ms ease;
+}
+
+.brand-mark:hover {
+    transform: translateY(-2px) rotate(-3deg);
+    box-shadow: 0 11px 22px rgba(49, 87, 213, 0.28);
 }
 
 .brand-mark svg {
@@ -194,8 +221,14 @@ button, .table-heading a {
     transition: background 160ms ease, transform 160ms ease, box-shadow 160ms ease;
 }
 
-button:hover {
+button:hover, .table-heading a:hover {
     background: var(--primary-dark);
+    box-shadow: 0 4px 10px rgba(36, 70, 179, 0.16);
+    transform: translateY(-1px);
+}
+
+button:active, .table-heading a:active {
+    transform: translateY(0);
 }
 
 .search button {
@@ -215,6 +248,7 @@ button:hover {
     border-radius: 10px;
     padding: 12px 14px;
     font-size: 0.9rem;
+    animation: rise-in 260ms ease-out both;
 }
 
 .flash.success {
@@ -241,6 +275,38 @@ button:hover {
     border-radius: 12px;
     background: white;
     box-shadow: 0 5px 18px rgba(31, 45, 74, 0.045);
+    transition: transform 180ms ease, box-shadow 180ms ease;
+}
+
+.summary article:hover, .card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 10px 24px rgba(31, 45, 74, 0.085);
+}
+
+.topbar,
+.container > .card-heading,
+.container > .card {
+    animation: rise-in 420ms ease-out both;
+}
+
+.summary article {
+    animation: rise-in 420ms ease-out both;
+}
+
+.summary article:nth-child(2) {
+    animation-delay: 70ms;
+}
+
+.summary article:nth-child(3) {
+    animation-delay: 140ms;
+}
+
+.container > .card:nth-of-type(2) {
+    animation-delay: 100ms;
+}
+
+.container > .card:nth-of-type(3) {
+    animation-delay: 170ms;
 }
 
 .summary article {
@@ -272,6 +338,11 @@ button:hover {
     place-items: center;
     background: var(--primary-soft);
     color: var(--primary);
+    transition: transform 180ms ease;
+}
+
+.summary article:hover .metric-icon {
+    transform: scale(1.08) rotate(-4deg);
 }
 
 .metric-icon svg {
@@ -398,11 +469,15 @@ th {
 }
 
 tbody tr {
-    transition: background 140ms ease;
+    transition: background 140ms ease, box-shadow 140ms ease;
 }
 
 tbody tr:hover {
     background: #fafcff;
+}
+
+tbody tr:not(:last-child) td {
+    transition: border-color 140ms ease;
 }
 
 th:nth-child(3), th:nth-child(4), th:nth-child(5),
@@ -518,6 +593,7 @@ th:last-child {
     width: min(420px, 100%);
     padding: 34px;
     box-shadow: 0 18px 50px rgba(31, 45, 74, 0.1);
+    animation: rise-in 460ms ease-out both;
 }
 
 .auth-card::before {
@@ -532,6 +608,18 @@ th:last-child {
         linear-gradient(0deg, transparent 48%, rgba(255, 255, 255, 0.85) 48%, rgba(255, 255, 255, 0.85) 52%, transparent 52%),
         var(--primary);
     box-shadow: 0 8px 18px rgba(49, 87, 213, 0.2);
+    animation: mark-enter 520ms 120ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+
+@keyframes mark-enter {
+    from {
+        opacity: 0;
+        transform: scale(0.82) rotate(-8deg);
+    }
+    to {
+        opacity: 1;
+        transform: scale(1) rotate(0);
+    }
 }
 
 .auth-card h1 {
@@ -571,6 +659,11 @@ th:last-child {
 .auth-switch a {
     color: var(--primary);
     font-weight: 700;
+    transition: color 160ms ease;
+}
+
+.auth-switch a:hover {
+    color: var(--primary-dark);
 }
 
 .visually-hidden {
@@ -581,6 +674,15 @@ th:last-child {
     clip: rect(0, 0, 0, 0);
     white-space: nowrap;
     clip-path: inset(50%);
+}
+
+@media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+        scroll-behavior: auto !important;
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+    }
 }
 
 @media (max-width: 760px) {
