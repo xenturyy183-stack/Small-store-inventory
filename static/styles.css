@@ -294,7 +294,7 @@ button:active, .table-heading a:active {
 
 .summary {
     display: grid;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
+    grid-template-columns: repeat(4, minmax(0, 1fr));
     gap: 16px;
     margin-bottom: 18px;
 }
@@ -389,6 +389,11 @@ button:active, .table-heading a:active {
     color: #b7791f;
 }
 
+.metric-icon.warning {
+    background: #fff4dd;
+    color: #a46812;
+}
+
 .card {
     margin-bottom: 18px;
     padding: 22px;
@@ -409,7 +414,7 @@ button:active, .table-heading a:active {
 
 .item-form {
     display: grid;
-    grid-template-columns: 2fr 1.4fr 0.8fr 1fr auto;
+    grid-template-columns: 2fr 1.4fr 0.8fr 1.1fr 1fr auto;
     align-items: end;
     gap: 14px;
     margin-top: 18px;
@@ -509,8 +514,8 @@ tbody tr:not(:last-child) td {
     transition: border-color 140ms ease;
 }
 
-th:nth-child(3), th:nth-child(4), th:nth-child(5),
-td:nth-child(3), td:nth-child(4), td:nth-child(5) {
+th:nth-child(3), th:nth-child(4), th:nth-child(5), th:nth-child(6),
+td:nth-child(3), td:nth-child(4), td:nth-child(5), td:nth-child(6) {
     text-align: right;
 }
 
@@ -737,10 +742,6 @@ th:last-child {
 
     .summary {
         grid-template-columns: 1fr 1fr;
-    }
-
-    .summary article:last-child {
-        grid-column: 1 / -1;
     }
 
     .item-form {

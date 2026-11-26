@@ -50,6 +50,7 @@ def init_db():
                 name TEXT NOT NULL,
                 category TEXT NOT NULL DEFAULT 'Other',
                 quantity INTEGER NOT NULL CHECK (quantity >= 0),
+                reorder_level INTEGER NOT NULL DEFAULT 5 CHECK (reorder_level >= 0),
                 price REAL NOT NULL CHECK (price >= 0)
             );
             """
@@ -60,6 +61,13 @@ def init_db():
         if "category" not in item_columns:
             connection.execute(
                 "ALTER TABLE items ADD COLUMN category TEXT NOT NULL DEFAULT 'Other'"
+            )
+        if "reorder_level" not in item_columns:
+            connection.execute(
+                """
+                ALTER TABLE items ADD COLUMN reorder_level INTEGER NOT NULL
+                DEFAULT 5 CHECK (reorder_level >= 0)
+                """
             )
         duplicate_groups = connection.execute(
             """
@@ -165,12 +173,14 @@ def import_legacy_inventory(connection, user_id):
         ):
             connection.execute(
                 """
-                INSERT INTO items (user_id, name, category, quantity, price)
-                VALUES (?, ?, ?, ?, ?)
+                INSERT INTO items
+                    (user_id, name, category, quantity, reorder_level, price)
+                VALUES (?, ?, ?, ?, 5, ?)
                 ON CONFLICT(user_id, name COLLATE NOCASE) DO UPDATE SET
                     name = excluded.name,
                     category = excluded.category,
                     quantity = excluded.quantity,
+                    reorder_level = excluded.reorder_level,
                     price = excluded.price
                 """,
                 (user_id, item["name"], "Other", item["quantity"], item["price"]),
@@ -183,6 +193,7 @@ def read_item_form():
     name = name[:1].upper() + name[1:]
     category = category[:1].upper() + category[1:]
     quantity_text = request.form.get("quantity", "").strip()
+    reorder_level_text = request.form.get("reorder_level", "").strip()
     price_text = request.form.get("price", "").strip()
 
     if not name:
@@ -198,16 +209,23 @@ def read_item_form():
         raise ValueError("Quantity must be a whole number.") from error
 
     try:
+        reorder_level = int(reorder_level_text)
+    except ValueError as error:
+        raise ValueError("Reorder level must be a whole number.") from error
+
+    try:
         price = float(price_text)
     except ValueError as error:
         raise ValueError("Price must be a number.") from error
 
     if quantity < 0:
         raise ValueError("Quantity cannot be negative.")
+    if reorder_level < 0:
+        raise ValueError("Reorder level cannot be negative.")
     if not math.isfinite(price) or price < 0:
         raise ValueError("Price must be a non-negative number.")
 
-    return name, category, quantity, price
+    return name, category, quantity, reorder_level, price
 
 
 @app.get("/register")
@@ -310,7 +328,7 @@ def index():
             parameters.append(category)
         items = connection.execute(
             f"""
-            SELECT id, name, category, quantity, price FROM items
+            SELECT id, name, category, quantity, reorder_level, price FROM items
             WHERE {" AND ".join(conditions)}
             ORDER BY id
             """,
@@ -328,6 +346,9 @@ def index():
 
     total_items = sum(item["quantity"] for item in items)
     total_value = sum(item["quantity"] * item["price"] for item in items)
+    reorder_count = sum(
+        item["quantity"] <= item["reorder_level"] for item in items
+    )
     return render_template(
         "index.html",
         items=items,
@@ -336,6 +357,7 @@ def index():
         categories=categories,
         total_items=total_items,
         total_value=total_value,
+        reorder_count=reorder_count,
         username=g.user["username"],
     )
 
@@ -344,7 +366,7 @@ def index():
 @login_required
 def add_item():
     try:
-        name, category, quantity, price = read_item_form()
+        name, category, quantity, reorder_level, price = read_item_form()
         with closing(connect_db()) as connection:
             connection.execute("BEGIN IMMEDIATE")
             existing_item = connection.execute(
@@ -356,15 +378,17 @@ def add_item():
             ).fetchone()
             connection.execute(
                 """
-                INSERT INTO items (user_id, name, category, quantity, price)
-                VALUES (?, ?, ?, ?, ?)
+                INSERT INTO items
+                    (user_id, name, category, quantity, reorder_level, price)
+                VALUES (?, ?, ?, ?, ?, ?)
                 ON CONFLICT(user_id, name COLLATE NOCASE) DO UPDATE SET
                     name = excluded.name,
                     category = excluded.category,
                     quantity = excluded.quantity,
+                    reorder_level = excluded.reorder_level,
                     price = excluded.price
                 """,
-                (g.user["id"], name, category, quantity, price),
+                (g.user["id"], name, category, quantity, reorder_level, price),
             )
             connection.commit()
         if existing_item:
@@ -383,7 +407,7 @@ def add_item():
 @login_required
 def update_item(item_id):
     try:
-        name, category, quantity, price = read_item_form()
+        name, category, quantity, reorder_level, price = read_item_form()
         with closing(connect_db()) as connection:
             duplicate = connection.execute(
                 """
@@ -397,10 +421,11 @@ def update_item(item_id):
                 return redirect(url_for("index"))
             result = connection.execute(
                 """
-                UPDATE items SET name = ?, category = ?, quantity = ?, price = ?
+                UPDATE items
+                SET name = ?, category = ?, quantity = ?, reorder_level = ?, price = ?
                 WHERE id = ? AND user_id = ?
                 """,
-                (name, category, quantity, price, item_id, g.user["id"]),
+                (name, category, quantity, reorder_level, price, item_id, g.user["id"]),
             )
             connection.commit()
         if result.rowcount:

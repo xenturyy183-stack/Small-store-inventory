@@ -99,6 +99,18 @@
                     </svg>
                 </span>
             </article>
+            <article>
+                <div class="metric-copy">
+                    <span>Needs reorder</span>
+                    <strong>{{ reorder_count }}</strong>
+                </div>
+                <span class="metric-icon warning" aria-hidden="true">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M10.3 4.3 2.8 17.2A2 2 0 0 0 4.5 20h15a2 2 0 0 0 1.7-2.8L13.7 4.3a2 2 0 0 0-3.4 0z"></path>
+                        <path d="M12 9v4m0 3h.01"></path>
+                    </svg>
+                </span>
+            </article>
         </section>
 
         <section class="card">
@@ -122,6 +134,11 @@
                 <label>
                     Quantity
                     <input id="quantity" name="quantity" type="number" min="0" step="1" required>
+                </label>
+                <label>
+                    Reorder when at or below
+                    <input id="reorder_level" name="reorder_level" type="number" min="0" step="1"
+                           value="5" required>
                 </label>
                 <label>
                     Unit price
@@ -166,6 +183,7 @@
                             <th>Item</th>
                             <th>Category</th>
                             <th>Quantity</th>
+                            <th>Reorder at</th>
                             <th>Unit price</th>
                             <th>Stock value</th>
                             <th>Actions</th>
@@ -182,13 +200,21 @@
                                 </td>
                                 <td data-label="Quantity">
                                     {% if item.quantity == 0 %}
-                                        <span class="stock-badge out">0</span>
-                                    {% elif item.quantity <= 5 %}
-                                        <span class="stock-badge low">{{ item.quantity }}</span>
+                                        <span class="stock-badge out"
+                                              aria-label="Out of stock, reorder at {{ item.reorder_level }}">0</span>
+                                    {% elif item.quantity <= item.reorder_level %}
+                                        <span class="stock-badge low"
+                                              aria-label="{{ item.quantity }} in stock, reorder at {{ item.reorder_level }}">
+                                            {{ item.quantity }}
+                                        </span>
                                     {% else %}
-                                        <span class="stock-badge">{{ item.quantity }}</span>
+                                        <span class="stock-badge"
+                                              aria-label="{{ item.quantity }} in stock, reorder at {{ item.reorder_level }}">
+                                            {{ item.quantity }}
+                                        </span>
                                     {% endif %}
                                 </td>
+                                <td data-label="Reorder at">{{ item.reorder_level }}</td>
                                 <td data-label="Unit price">${{ "%.2f"|format(item.price) }}</td>
                                 <td data-label="Stock value">${{ "%.2f"|format(item.quantity * item.price) }}</td>
                                 <td data-label="Actions" class="actions">
@@ -197,6 +223,7 @@
                                                 data-name="{{ item.name }}"
                                                 data-category="{{ item.category }}"
                                                 data-quantity="{{ item.quantity }}"
+                                                data-reorder-level="{{ item.reorder_level }}"
                                                 data-price="{{ item.price }}"
                                                 data-update-url="{{ url_for('update_item', item_id=item.id) }}">Edit</button>
                                         <form action="{{ url_for('delete_item', item_id=item.id) }}" method="post"
@@ -209,7 +236,7 @@
                             </tr>
                         {% else %}
                             <tr>
-                                <td colspan="6" class="empty">No inventory items found.</td>
+                                <td colspan="7" class="empty">No inventory items found.</td>
                             </tr>
                         {% endfor %}
                     </tbody>
@@ -245,6 +272,7 @@
                 document.getElementById("name").value = button.dataset.name;
                 document.getElementById("category").value = button.dataset.category;
                 document.getElementById("quantity").value = button.dataset.quantity;
+                document.getElementById("reorder_level").value = button.dataset.reorderLevel;
                 document.getElementById("price").value = button.dataset.price;
                 itemForm.action = button.dataset.updateUrl;
                 submitButton.textContent = "Update item";
