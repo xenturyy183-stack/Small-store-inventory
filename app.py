@@ -68,6 +68,27 @@ def init_db():
                 quantity_after INTEGER NOT NULL CHECK (quantity_after >= 0),
                 created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
             );
+            CREATE TABLE IF NOT EXISTS inventory_snapshots (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                product_count INTEGER NOT NULL CHECK (product_count >= 0),
+                total_units INTEGER NOT NULL CHECK (total_units >= 0),
+                listed_value REAL NOT NULL CHECK (listed_value >= 0),
+                cost_value REAL NOT NULL CHECK (cost_value >= 0),
+                uncosted_count INTEGER NOT NULL CHECK (uncosted_count >= 0)
+            );
+            CREATE TABLE IF NOT EXISTS inventory_snapshot_items (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                snapshot_id INTEGER NOT NULL REFERENCES inventory_snapshots(id) ON DELETE CASCADE,
+                item_code TEXT NOT NULL,
+                name TEXT NOT NULL,
+                category TEXT NOT NULL,
+                quantity INTEGER NOT NULL CHECK (quantity >= 0),
+                reorder_level INTEGER NOT NULL CHECK (reorder_level >= 0),
+                unit_cost REAL CHECK (unit_cost IS NULL OR unit_cost >= 0),
+                price REAL NOT NULL CHECK (price >= 0)
+            );
             """
         )
         item_columns = {
@@ -141,6 +162,18 @@ def init_db():
             """
             CREATE INDEX IF NOT EXISTS stock_movements_user_history
             ON stock_movements (user_id, id DESC)
+            """
+        )
+        connection.execute(
+            """
+            CREATE INDEX IF NOT EXISTS inventory_snapshots_user_history
+            ON inventory_snapshots (user_id, id DESC)
+            """
+        )
+        connection.execute(
+            """
+            CREATE INDEX IF NOT EXISTS inventory_snapshot_items_snapshot
+            ON inventory_snapshot_items (snapshot_id, id)
             """
         )
         connection.commit()
@@ -545,6 +578,135 @@ def movements():
     return render_template(
         "movements.html",
         movements=stock_movements,
+        username=g.user["username"],
+    )
+
+
+@app.get("/snapshots")
+@login_required
+def snapshots():
+    with closing(connect_db()) as connection:
+        saved_snapshots = connection.execute(
+            """
+            SELECT id, created_at, product_count, total_units, listed_value,
+                   cost_value, uncosted_count
+            FROM inventory_snapshots
+            WHERE user_id = ?
+            ORDER BY id DESC
+            """,
+            (g.user["id"],),
+        ).fetchall()
+    return render_template(
+        "snapshots.html",
+        snapshots=saved_snapshots,
+        snapshot=None,
+        items=[],
+        username=g.user["username"],
+    )
+
+
+@app.post("/snapshots")
+@login_required
+def save_snapshot():
+    try:
+        with closing(connect_db()) as connection:
+            connection.execute("BEGIN IMMEDIATE")
+            items = connection.execute(
+                """
+                SELECT item_code, name, category, quantity, reorder_level,
+                       unit_cost, price
+                FROM items
+                WHERE user_id = ?
+                ORDER BY category COLLATE NOCASE, name COLLATE NOCASE
+                """,
+                (g.user["id"],),
+            ).fetchall()
+            listed_value = sum(item["quantity"] * item["price"] for item in items)
+            cost_value = sum(
+                item["quantity"] * item["unit_cost"]
+                for item in items
+                if item["unit_cost"] is not None
+            )
+            uncosted_count = sum(item["unit_cost"] is None for item in items)
+            cursor = connection.execute(
+                """
+                INSERT INTO inventory_snapshots (
+                    user_id, product_count, total_units, listed_value,
+                    cost_value, uncosted_count
+                )
+                VALUES (?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    g.user["id"],
+                    len(items),
+                    sum(item["quantity"] for item in items),
+                    listed_value,
+                    cost_value,
+                    uncosted_count,
+                ),
+            )
+            connection.executemany(
+                """
+                INSERT INTO inventory_snapshot_items (
+                    snapshot_id, item_code, name, category, quantity,
+                    reorder_level, unit_cost, price
+                )
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                [
+                    (
+                        cursor.lastrowid,
+                        item["item_code"],
+                        item["name"],
+                        item["category"],
+                        item["quantity"],
+                        item["reorder_level"],
+                        item["unit_cost"],
+                        item["price"],
+                    )
+                    for item in items
+                ],
+            )
+            connection.commit()
+        flash("Inventory snapshot saved.", "success")
+    except sqlite3.Error:
+        app.logger.exception("Could not save inventory snapshot")
+        flash("Could not save the inventory snapshot. Please try again.", "error")
+    return redirect(url_for("snapshots"))
+
+
+@app.get("/snapshots/<int:snapshot_id>")
+@login_required
+def snapshot_detail(snapshot_id):
+    with closing(connect_db()) as connection:
+        saved_snapshot = connection.execute(
+            """
+            SELECT id, created_at, product_count, total_units, listed_value,
+                   cost_value, uncosted_count
+            FROM inventory_snapshots
+            WHERE id = ? AND user_id = ?
+            """,
+            (snapshot_id, g.user["id"]),
+        ).fetchone()
+        if saved_snapshot is None:
+            flash("Snapshot not found.", "error")
+            return redirect(url_for("snapshots"))
+        items = connection.execute(
+            """
+            SELECT item_code, name, category, quantity, reorder_level,
+                   unit_cost, price
+            FROM inventory_snapshot_items
+            WHERE snapshot_id = ?
+            ORDER BY category COLLATE NOCASE, name COLLATE NOCASE
+            """,
+            (saved_snapshot["id"],),
+        ).fetchall()
+        saved_snapshots = []
+    return render_template(
+        "snapshots.html",
+        snapshots=saved_snapshots,
+        snapshot=saved_snapshot,
+        items=items,
         username=g.user["username"],
     )
 

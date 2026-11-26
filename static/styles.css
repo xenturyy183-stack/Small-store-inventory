@@ -1397,6 +1397,41 @@ th:last-child {
     box-shadow: none;
 }
 
+.snapshot-save-form {
+    flex: 0 0 auto;
+    margin: 0 0 4px;
+}
+
+.snapshot-count {
+    color: #7d8277;
+    font-size: 0.82rem;
+    font-weight: 650;
+}
+
+.snapshot-view-link {
+    display: inline-flex;
+    align-items: center;
+    border: 1px solid #dfe5d8;
+    border-radius: 8px;
+    padding: 7px 10px;
+    background: #edf2e8;
+    color: #315b40;
+    font-size: 0.8rem;
+    font-weight: 700;
+    text-decoration: none;
+}
+
+.snapshot-view-link:hover {
+    background: #dce9dc;
+}
+
+.snapshot-list-table th:nth-child(n+2),
+.snapshot-list-table td:nth-child(n+2),
+.snapshot-detail-table th:nth-child(n+4),
+.snapshot-detail-table td:nth-child(n+4) {
+    text-align: right;
+}
+
 .main-content th,
 .main-content td {
     border-bottom-color: #efebe2;
@@ -1737,10 +1772,14 @@ th:last-child {
 
 @media (max-width: 560px) {
     .side-nav {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
         gap: 4px;
+        overflow: visible;
     }
 
     .side-link {
+        min-width: 0;
         gap: 5px;
         padding-right: 7px;
         padding-left: 7px;

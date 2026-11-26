@@ -1,0 +1,171 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>{% if snapshot %}Snapshot details{% else %}Inventory snapshots{% endif %} · Small Store Inventory</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
+</head>
+<body>
+    <div class="app-shell">
+        {% include "sidebar.html" %}
+        <main class="main-content">
+            <header class="main-topbar">
+                <div class="page-heading">
+                    {% if snapshot %}
+                        <p class="eyebrow">History / Snapshot</p>
+                        <h1>Snapshot details</h1>
+                        <p>Saved {{ snapshot.created_at }} UTC. Values and product details are from that time.</p>
+                    {% else %}
+                        <p class="eyebrow">History / Inventory</p>
+                        <h1>Inventory snapshots</h1>
+                        <p>Save a copy of your products, quantities, prices, and costs to review later.</p>
+                    {% endif %}
+                </div>
+                {% if snapshot %}
+                    <a class="topbar-link" href="{{ url_for('snapshots') }}">Back to snapshots</a>
+                {% else %}
+                    <form class="snapshot-save-form" action="{{ url_for('save_snapshot') }}" method="post">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                        <button type="submit">Save current snapshot</button>
+                    </form>
+                {% endif %}
+            </header>
+
+            {% with messages = get_flashed_messages(with_categories=true) %}
+                {% if messages %}
+                    {% for category, message in messages %}
+                        <div class="flash {{ category }}">{{ message }}</div>
+                    {% endfor %}
+                {% endif %}
+            {% endwith %}
+
+            {% if snapshot %}
+                <section class="summary" aria-label="Snapshot summary">
+                    <article>
+                        <div class="metric-copy">
+                            <span>Product types</span>
+                            <strong>{{ snapshot.product_count }}</strong>
+                        </div>
+                    </article>
+                    <article>
+                        <div class="metric-copy">
+                            <span>Total units</span>
+                            <strong>{{ snapshot.total_units }}</strong>
+                        </div>
+                    </article>
+                    <article>
+                        <div class="metric-copy">
+                            <span>Cost valuation</span>
+                            <strong>${{ "%.2f"|format(snapshot.cost_value) }}</strong>
+                        </div>
+                    </article>
+                    <article>
+                        <div class="metric-copy">
+                            <span>Value at unit price</span>
+                            <strong>${{ "%.2f"|format(snapshot.listed_value) }}</strong>
+                        </div>
+                    </article>
+                </section>
+
+                <section class="card">
+                    <div class="card-heading">
+                        <div>
+                            <h2>Products in this snapshot</h2>
+                            <p>{{ snapshot.uncosted_count }} product{% if snapshot.uncosted_count != 1 %}s{% endif %}
+                                did not have a unit cost when saved.</p>
+                        </div>
+                    </div>
+                    <div class="table-wrap">
+                        <table class="snapshot-detail-table">
+                            <thead>
+                                <tr>
+                                    <th>Product</th>
+                                    <th>Code</th>
+                                    <th>Category</th>
+                                    <th>Quantity</th>
+                                    <th>Reorder at</th>
+                                    <th>Unit cost</th>
+                                    <th>Unit price</th>
+                                    <th>Cost value</th>
+                                    <th>Listed value</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for item in items %}
+                                    <tr>
+                                        <td data-label="Product">{{ item.name }}</td>
+                                        <td data-label="Code"><code class="item-code">{{ item.item_code }}</code></td>
+                                        <td data-label="Category">{{ item.category }}</td>
+                                        <td data-label="Quantity">{{ item.quantity }}</td>
+                                        <td data-label="Reorder at">{{ item.reorder_level }}</td>
+                                        <td data-label="Unit cost">
+                                            {% if item.unit_cost is none %}
+                                                <span class="unknown-cost">Not set</span>
+                                            {% else %}
+                                                ${{ "%.2f"|format(item.unit_cost) }}
+                                            {% endif %}
+                                        </td>
+                                        <td data-label="Unit price">${{ "%.2f"|format(item.price) }}</td>
+                                        <td data-label="Cost value">
+                                            {% if item.unit_cost is none %}
+                                                <span class="unknown-cost">Not valued</span>
+                                            {% else %}
+                                                ${{ "%.2f"|format(item.quantity * item.unit_cost) }}
+                                            {% endif %}
+                                        </td>
+                                        <td data-label="Listed value">${{ "%.2f"|format(item.quantity * item.price) }}</td>
+                                    </tr>
+                                {% else %}
+                                    <tr>
+                                        <td colspan="9" class="empty">This snapshot contains no products.</td>
+                                    </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </section>
+            {% else %}
+                <section class="card table-card">
+                    <div class="table-heading">
+                        <h2>Saved snapshots</h2>
+                        <span class="snapshot-count">{{ snapshots|length }} saved</span>
+                    </div>
+                    <div class="table-wrap">
+                        <table class="snapshot-list-table">
+                            <thead>
+                                <tr>
+                                    <th>Saved (UTC)</th>
+                                    <th>Products</th>
+                                    <th>Total units</th>
+                                    <th>Cost valuation</th>
+                                    <th>Value at unit price</th>
+                                    <th>Details</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for saved in snapshots %}
+                                    <tr>
+                                        <td data-label="Saved (UTC)"><time>{{ saved.created_at }}</time></td>
+                                        <td data-label="Products">{{ saved.product_count }}</td>
+                                        <td data-label="Total units">{{ saved.total_units }}</td>
+                                        <td data-label="Cost valuation">${{ "%.2f"|format(saved.cost_value) }}</td>
+                                        <td data-label="Value at unit price">${{ "%.2f"|format(saved.listed_value) }}</td>
+                                        <td data-label="Details">
+                                            <a class="snapshot-view-link" href="{{ url_for('snapshot_detail', snapshot_id=saved.id) }}">View snapshot</a>
+                                        </td>
+                                    </tr>
+                                {% else %}
+                                    <tr>
+                                        <td colspan="6" class="empty">No snapshots saved yet. Save one to start your inventory history.</td>
+                                    </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </section>
+            {% endif %}
+        </main>
+    </div>
+</body>
+</html>
